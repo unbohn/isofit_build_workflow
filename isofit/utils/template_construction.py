@@ -1213,7 +1213,7 @@ def get_metadata_from_loc(loc_file: str, gip: dict, tsip: dict, lut_params: LUTC
         valid[:trim_lines, :] = False
         valid[-trim_lines:, :] = False
 
-    if 'Easting (m)' or 'Northing (m)' in loc_dataset.GetMetadata().values():
+    if 'Easting (m)' and 'Northing (m)' in loc_dataset.GetMetadata().values():
         loc_hdr = envi.open(loc_file + '.hdr')
         zone = [int(s) for s in loc_hdr.metadata["description"].split() if s.isdigit()][0]
         hemisphere = [s for s in loc_hdr.metadata["description"].split() if s in ["North", "South"]][0]
