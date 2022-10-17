@@ -245,20 +245,36 @@ class LUTConfig:
                 self.elevation_spacing_min = gip["radiative_transfer_parameters"]["GNDALT"]["lut_spacing_min"]
         else:
             logging.info('No spacing information for elevation LUT found in config file. '
-                         'Setting spacing to 0.5 and minimum spacing to 0.2.')
-            self.elevation_spacing = 0.5
+                         'Setting spacing to 0.25 and minimum spacing to 0.2.')
+            self.elevation_spacing = 0.25
             self.elevation_spacing_min = 0.2
 
         # Units of g / m2
-        self.h2o_spacing = gip["radiative_transfer_parameters"]["H2OSTR"]["lut_spacing"]
-        self.h2o_spacing_min = gip["radiative_transfer_parameters"]["H2OSTR"]["lut_spacing_min"]
+        try:
+            self.h2o_spacing = gip["radiative_transfer_parameters"]["H2OSTR"]["lut_spacing"]
+        except KeyError:
+            logging.info('No spacing information for H2O LUT found in config file. Setting to 0.25.')
+            self.h2o_spacing = 0.25
+        try:
+            self.h2o_spacing_min = gip["radiative_transfer_parameters"]["H2OSTR"]["lut_spacing_min"]
+        except KeyError:
+            logging.info('No spacing minimum for H2O LUT found in config file. Setting to 0.25.')
+            self.h2o_spacing_min = 0.03
 
         # Special parameter to specify the minimum allowable water vapor value in g / m2
-        self.h2o_min = gip["radiative_transfer_parameters"]["H2OSTR"]["min"]
+        try:
+            self.h2o_min = gip["radiative_transfer_parameters"]["H2OSTR"]["min"]
+        except KeyError:
+            logging.info('No minimum value for H2O LUT found in config file. Setting to 0.05.')
+            self.h2o_min = 0.05
 
         # Set defaults, will override based on settings
         # Units of g / m2
-        self.h2o_range = gip["radiative_transfer_parameters"]["H2OSTR"]["default_range"]
+        try:
+            self.h2o_range = gip["radiative_transfer_parameters"]["H2OSTR"]["default_range"]
+        except KeyError:
+            logging.info('No default range for H2O LUT found in config file. Setting to [0.05, 5].')
+            self.h2o_range = [0.05, 5]
 
         # Units of degrees
         self.to_sensor_azimuth_spacing = 60
@@ -273,14 +289,27 @@ class LUTConfig:
         self.aerosol_0_spacing_min = 0
         self.aerosol_1_spacing = 0
         self.aerosol_1_spacing_min = 0
-        self.aerosol_2_spacing = 0.25
+        self.aerosol_2_spacing = 0.1
         self.aerosol_2_spacing_min = 0
-        self.aerosol_0_range = [0.001, 0.5]
-        self.aerosol_1_range = [0.001, 0.5]
-        self.aerosol_2_range = [0.001, 0.5]
-        self.aot_550_range = gip["radiative_transfer_parameters"]["AOT550"]["default_range"]
-        self.aot_550_spacing = gip["radiative_transfer_parameters"]["AOT550"]["lut_spacing"]
-        self.aot_550_spacing_min = gip["radiative_transfer_parameters"]["AOT550"]["lut_spacing_min"]
+        self.aerosol_0_range = [0.001, 1]
+        self.aerosol_1_range = [0.001, 1]
+        self.aerosol_2_range = [0.001, 1]
+
+        try:
+            self.aot_550_range = gip["radiative_transfer_parameters"]["AOT550"]["default_range"]
+        except KeyError:
+            logging.info('No default range for AOT LUT found in config file. Setting to [0.001, 1].')
+            self.aot_550_range = [0.001, 1]
+        try:
+            self.aot_550_spacing = gip["radiative_transfer_parameters"]["AOT550"]["lut_spacing"]
+        except KeyError:
+            logging.info('No spacing information for AOT LUT found in config file. Setting to 0.')
+            self.aot_550_spacing = 0
+        try:
+            self.aot_550_spacing_min = gip["radiative_transfer_parameters"]["AOT550"]["lut_spacing_min"]
+        except KeyError:
+            logging.info('No spacing minimum for AOT LUT found in config file. Setting to 0.')
+            self.aot_550_spacing_min = 0
 
         # overwrite anything that comes in from the config file
         if lut_config_file is not None:

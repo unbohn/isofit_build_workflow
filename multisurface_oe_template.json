@@ -41,18 +41,18 @@
                 "H2OSTR": {
                     "lut_spacing": 0.25,
                     "lut_spacing_min": 0.03,
-                    "default_range": [1.5, 2.0],
-                    "min": 0.2
+                    "default_range": [0.05, 5],
+                    "min": 0.05
                 },
                 "AOT550": {
                     "lut_spacing": 0,
                     "lut_spacing_min": 0,
-                    "default_range": [0.05, 0.2]
+                    "default_range": [0.001, 1]
                 },
                 "GNDALT": {
-                    "lut_spacing": 0.5,
+                    "lut_spacing": 0.25,
                     "lut_spacing_min": 0.2,
-                    "expand_range": 1
+                    "expand_range": 2
                 }
             }
         },
@@ -68,7 +68,7 @@
                 "toa_threshold_comparisons": ["gt","gt","gt"],
                 "statevector_elements": ["GNDALT"],
                 "GNDALT": {
-                    "lut_spacing": 0.5,
+                    "lut_spacing": 0.25,
                     "lut_spacing_min": 0.2,
                     "expand_range": 1
                 }
