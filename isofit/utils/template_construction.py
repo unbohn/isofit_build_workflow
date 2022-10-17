@@ -151,8 +151,7 @@ class Pathnames:
 
         self.earth_sun_distance_path = os.path.abspath(os.path.join(self.isofit_path, 'data', 'earth_sun_distance.txt'))
         self.irradiance_file = os.path.abspath(
-            os.path.join(self.isofit_path, 'examples', '20151026_SantaMonica', 'data',
-                         'prism_optimized_irr.dat'))
+            os.path.join(self.isofit_path, 'examples', '20151026_SantaMonica', 'data', 'prism_optimized_irr.dat'))
 
         self.aerosol_tpl_path = os.path.join(self.isofit_path, 'data', 'aerosol_template.json')
         self.rdn_factors_path = None
@@ -535,26 +534,37 @@ def build_presolve_config(opt: dict, gip: dict, paths: Pathnames, h2o_lut_grid: 
         radiative_transfer_config['radiative_transfer_engines']['vswir']["engine_base_dir"] = paths.modtran_path
 
     # make isofit configuration
-    isofit_config_h2o = {'ISOFIT_base': paths.isofit_path,
-                         'output': {'estimated_state_file': paths.h2o_subs_path},
-                         'input': {},
-                         'forward_model': {
-                             'instrument': {'wavelength_file': paths.wavelength_path,
-                                            'integrations': spectra_per_inversion,
-                                            'unknowns': {
-                                                'uncorrelated_radiometric_uncertainty':
-                                                    uncorrelated_radiometric_uncertainty}},
-                             'surface': {"surface_category": gip["options"]["surface_category"],
-                                         'surface_file': paths.surface_working_path,
-                                         'select_on_init': True},
-                             'radiative_transfer': radiative_transfer_config},
-                         "implementation": {
-                             "ray_temp_dir": paths.ray_temp_dir,
-                             'inversion': {
-                                 'windows': gip["options"]["inversion_windows"]},
-                             "n_cores": 1 if not opt["n_cores"] else opt["n_cores"],
-                             "debug_mode": opt["debug_mode"]}
-                         }
+    isofit_config_h2o = {
+        'ISOFIT_base': paths.isofit_path,
+        'output': {
+            'estimated_state_file': paths.h2o_subs_path
+        },
+        'input': {
+        },
+        'forward_model': {
+            'instrument': {
+                'wavelength_file': paths.wavelength_path,
+                'integrations': spectra_per_inversion,
+                'unknowns': {
+                    'uncorrelated_radiometric_uncertainty': uncorrelated_radiometric_uncertainty
+                }
+            },
+            'surface': {
+                "surface_category": gip["options"]["surface_category"],
+                'surface_file': paths.surface_working_path,
+                'select_on_init': True
+            },
+            'radiative_transfer': radiative_transfer_config
+        },
+        "implementation": {
+            "ray_temp_dir": paths.ray_temp_dir,
+            'inversion': {
+                'windows': gip["options"]["inversion_windows"]
+            },
+            "n_cores": 1 if not opt["n_cores"] else opt["n_cores"],
+            "debug_mode": opt["debug_mode"]
+        }
+    }
 
     if paths.input_channelized_uncertainty_path is not None:
         isofit_config_h2o['forward_model']['instrument']['unknowns'][
@@ -621,8 +631,8 @@ def build_main_config(opt: dict, gip: dict, tsip: dict, paths: Pathnames, lut_pa
         engine_name = 'modtran'
     else:
         engine_name = 'sRTMnet'
-    radiative_transfer_config = {
 
+    radiative_transfer_config = {
         "radiative_transfer_engines": {
             "vswir": {
                 "engine_name": engine_name,
@@ -631,8 +641,10 @@ def build_main_config(opt: dict, gip: dict, tsip: dict, paths: Pathnames, lut_pa
                 "template_file": paths.modtran_template_path
             }
         },
-        "statevector": {},
-        "lut_grid": {},
+        "statevector": {
+        },
+        "lut_grid": {
+        },
         "unknowns": {
             "H2O_ABSCO": 0.0
         }
@@ -701,25 +713,36 @@ def build_main_config(opt: dict, gip: dict, tsip: dict, paths: Pathnames, lut_pa
         surface_category = gip["options"]["surface_category"]
 
     # make isofit configuration
-    isofit_config_modtran = {'ISOFIT_base': paths.isofit_path,
-                             'input': {},
-                             'output': {},
-                             'forward_model': {
-                                 'instrument': {'wavelength_file': paths.wavelength_path,
-                                                'integrations': spectra_per_inversion,
-                                                'unknowns': {
-                                                    'uncorrelated_radiometric_uncertainty':
-                                                        uncorrelated_radiometric_uncertainty}},
-                                 "surface": {"surface_file": paths.surface_working_path,
-                                             "surface_category": surface_category,
-                                             "select_on_init": True},
-                                 "radiative_transfer": radiative_transfer_config},
-                             "implementation": {
-                                 "ray_temp_dir": paths.ray_temp_dir,
-                                 "inversion": {"windows": gip["options"]["inversion_windows"]},
-                                 "n_cores": 1 if not opt["n_cores"] else opt["n_cores"],
-                                 "debug_mode": opt["debug_mode"]}
-                             }
+    isofit_config_modtran = {
+        'ISOFIT_base': paths.isofit_path,
+        'input': {
+        },
+        'output': {
+        },
+        'forward_model': {
+            'instrument': {
+                'wavelength_file': paths.wavelength_path,
+                'integrations': spectra_per_inversion,
+                'unknowns': {
+                    'uncorrelated_radiometric_uncertainty': uncorrelated_radiometric_uncertainty
+                }
+            },
+            'surface': {
+                'surface_file': paths.surface_working_path,
+                "surface_category": surface_category,
+                "select_on_init": True
+            },
+            "radiative_transfer": radiative_transfer_config
+        },
+        "implementation": {
+            "ray_temp_dir": paths.ray_temp_dir,
+            "inversion": {
+                "windows": gip["options"]["inversion_windows"]
+            },
+            "n_cores": 1 if not opt["n_cores"] else opt["n_cores"],
+            "debug_mode": opt["debug_mode"]
+        }
+    }
 
     if opt["empirical_line"]:
         if surface_type is None:
@@ -809,69 +832,75 @@ def write_modtran_template(gip: dict, fid: str, altitude_km: float, dayofyear: i
 
     """
     # make modtran configuration
-    h2o_template = {"MODTRAN": [{
-        "MODTRANINPUT": {
-            "NAME": fid,
-            "DESCRIPTION": "",
-            "CASE": 0,
-            "RTOPTIONS": {
-                "MODTRN": "RT_CORRK_FAST",
-                "LYMOLC": False,
-                "T_BEST": False,
-                "IEMSCT": "RT_SOLAR_AND_THERMAL",
-                "IMULT": "RT_DISORT",
-                "DISALB": False,
-                "NSTR": 8,
-                "SOLCON": 0.0
-            },
-            "ATMOSPHERE": {
-                "MODEL": gip["radiative_transfer_parameters"]["atmosphere_type"],
-                "M1": gip["radiative_transfer_parameters"]["atmosphere_type"],
-                "M2": gip["radiative_transfer_parameters"]["atmosphere_type"],
-                "M3": gip["radiative_transfer_parameters"]["atmosphere_type"],
-                "M4": gip["radiative_transfer_parameters"]["atmosphere_type"],
-                "M5": gip["radiative_transfer_parameters"]["atmosphere_type"],
-                "M6": gip["radiative_transfer_parameters"]["atmosphere_type"],
-                "CO2MX": 410.0,
-                "H2OSTR": 1.0,
-                "H2OUNIT": "g",
-                "O3STR": 0.3,
-                "O3UNIT": "a"
-            },
-            "AEROSOLS": {"IHAZE": ihaze_type},
-            "GEOMETRY": {
-                "ITYPE": 3,
-                "H1ALT": altitude_km,
-                "IDAY": dayofyear,
-                "IPARM": 11,
-                "PARM1": latitude,
-                "PARM2": longitude,
-                "TRUEAZ": to_sensor_azimuth,
-                "OBSZEN": to_sensor_zenith,
-                "GMTIME": gmtime
-            },
-            "SURFACE": {
-                "SURFTYPE": "REFL_LAMBER_MODEL",
-                "GNDALT": elevation_km,
-                "NSURF": 1,
-                "SURFP": {"CSALB": "LAMB_CONST_0_PCT"}
-            },
-            "SPECTRAL": {
-                "V1": 340.0,
-                "V2": 2520.0,
-                "DV": gip["radiative_transfer_parameters"]["spectral_DV"],
-                "FWHM": gip["radiative_transfer_parameters"]["spectral_FWHM"],
-                "YFLAG": "R",
-                "XFLAG": "N",
-                "FLAGS": "NT A   ",
-                "BMNAME": gip["radiative_transfer_parameters"]["spectral_BMNAME"]
-            },
-            "FILEOPTIONS": {
-                "NOPRNT": 2,
-                "CKPRNT": True
+    h2o_template = {
+        "MODTRAN": [{
+            "MODTRANINPUT": {
+                "NAME": fid,
+                "DESCRIPTION": "",
+                "CASE": 0,
+                "RTOPTIONS": {
+                    "MODTRN": "RT_CORRK_FAST",
+                    "LYMOLC": False,
+                    "T_BEST": False,
+                    "IEMSCT": "RT_SOLAR_AND_THERMAL",
+                    "IMULT": "RT_DISORT",
+                    "DISALB": False,
+                    "NSTR": 8,
+                    "SOLCON": 0.0
+                },
+                "ATMOSPHERE": {
+                    "MODEL": gip["radiative_transfer_parameters"]["atmosphere_type"],
+                    "M1": gip["radiative_transfer_parameters"]["atmosphere_type"],
+                    "M2": gip["radiative_transfer_parameters"]["atmosphere_type"],
+                    "M3": gip["radiative_transfer_parameters"]["atmosphere_type"],
+                    "M4": gip["radiative_transfer_parameters"]["atmosphere_type"],
+                    "M5": gip["radiative_transfer_parameters"]["atmosphere_type"],
+                    "M6": gip["radiative_transfer_parameters"]["atmosphere_type"],
+                    "CO2MX": 410.0,
+                    "H2OSTR": 1.0,
+                    "H2OUNIT": "g",
+                    "O3STR": 0.3,
+                    "O3UNIT": "a"
+                },
+                "AEROSOLS": {
+                    "IHAZE": ihaze_type
+                },
+                "GEOMETRY": {
+                    "ITYPE": 3,
+                    "H1ALT": altitude_km,
+                    "IDAY": dayofyear,
+                    "IPARM": 11,
+                    "PARM1": latitude,
+                    "PARM2": longitude,
+                    "TRUEAZ": to_sensor_azimuth,
+                    "OBSZEN": to_sensor_zenith,
+                    "GMTIME": gmtime
+                },
+                "SURFACE": {
+                    "SURFTYPE": "REFL_LAMBER_MODEL",
+                    "GNDALT": elevation_km,
+                    "NSURF": 1,
+                    "SURFP": {
+                        "CSALB": "LAMB_CONST_0_PCT"
+                    }
+                },
+                "SPECTRAL": {
+                    "V1": 340.0,
+                    "V2": 2520.0,
+                    "DV": gip["radiative_transfer_parameters"]["spectral_DV"],
+                    "FWHM": gip["radiative_transfer_parameters"]["spectral_FWHM"],
+                    "YFLAG": "R",
+                    "XFLAG": "N",
+                    "FLAGS": "NT A   ",
+                    "BMNAME": gip["radiative_transfer_parameters"]["spectral_BMNAME"]
+                },
+                "FILEOPTIONS": {
+                    "NOPRNT": 2,
+                    "CKPRNT": True
+                }
             }
-        }
-    }]}
+        }]
+    }
 
     # write modtran_template
     with open(output_file, 'w') as fout:
@@ -913,7 +942,8 @@ def load_climatology(config_path: str, latitude: float, longitude: float, acquis
                 "scale": 1,
                 "init": float((alr[1] - alr[0]) / 10. + alr[0]),
                 "prior_sigma": 10.0,
-                "prior_mean": float((alr[1] - alr[0]) / 10. + alr[0])}
+                "prior_mean": float((alr[1] - alr[0]) / 10. + alr[0])
+            }
 
             aerosol_lut_grid['AERFRAC_{}'.format(_a)] = aerosol_lut.tolist()
 
@@ -927,7 +957,8 @@ def load_climatology(config_path: str, latitude: float, longitude: float, acquis
             "scale": 1,
             "init": float((alr[1] - alr[0]) / 10. + alr[0]),
             "prior_sigma": 10.0,
-            "prior_mean": float((alr[1] - alr[0]) / 10. + alr[0])}
+            "prior_mean": float((alr[1] - alr[0]) / 10. + alr[0])
+        }
 
     logging.info('Loading Climatology')
     # If a configuration path has been provided, use it to get relevant info
@@ -983,6 +1014,7 @@ def calc_modtran_max_water(paths: Pathnames) -> float:
         'darwin': 'macos',
         'windows': 'windows'
     }
+
     name = 'H2O_bound_test'
     filebase = os.path.join(paths.lut_h2o_directory, name)
     with open(paths.h2o_template_path, 'r') as f:

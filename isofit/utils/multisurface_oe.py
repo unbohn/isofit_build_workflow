@@ -37,8 +37,12 @@ def main(rawargs=None):
     parser.add_argument('--logging_level', type=str, default="INFO")
     args = parser.parse_args(rawargs)
 
-    infiles = {'input_radiance': args.input_radiance, 'input_loc': args.input_loc, 'input_obs': args.input_obs,
-               'config_file': args.config_file}
+    infiles = {
+        'input_radiance': args.input_radiance,
+        'input_loc': args.input_loc,
+        'input_obs': args.input_obs,
+        'config_file': args.config_file
+    }
 
     # Check files exist
     for infile_name, infile in infiles.items():
