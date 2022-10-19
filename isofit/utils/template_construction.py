@@ -636,9 +636,11 @@ def build_main_config(opt: dict, gip: dict, tsip: dict, paths: Pathnames, lut_pa
         engine_name = "sRTMnet"
 
     radiative_transfer_config = {
+        "topography_model": gip["options"]["topography_model"],
         "radiative_transfer_engines": {
             "vswir": {
                 "engine_name": engine_name,
+                "multipart_transmittance": gip["options"]["multipart_transmittance"],
                 "lut_path": paths.surface_lut_paths[surface_type],
                 "aerosol_template_file": paths.aerosol_tpl_path,
                 "template_file": paths.modtran_template_path
