@@ -18,22 +18,20 @@
 # Author: David R Thompson, david.r.thompson@jpl.nasa.gov
 #
 
-import numpy as np
 from copy import deepcopy
-from scipy.linalg import det, norm, pinv, sqrtm, inv, block_diag
-from importlib import import_module
+import numpy as np
 from scipy.interpolate import interp1d
 from scipy.io import loadmat
+from scipy.linalg import block_diag
 
-from .common import recursive_replace, eps
+from isofit.configs import Config
+from isofit.surface import GlintSurface, LiquidWaterSurface, LUTSurface, MultiComponentSurface, Surface, ThermalSurface
+from .common import eps
 from .instrument import Instrument
 from ..radiative_transfer.radiative_transfer import RadiativeTransfer
-from isofit.configs import Config
-
-from isofit.surface import Surface, ThermalSurface, MultiComponentSurface, GlintSurface, LUTSurface
 
 
-### Classes ###
+# Classes
 
 class ForwardModel:
     """ForwardModel contains all the information about how to calculate
@@ -80,6 +78,8 @@ class ForwardModel:
             self.surface = Surface(self.full_config)
         elif self.config.surface.surface_category == 'multicomponent_surface':
             self.surface = MultiComponentSurface(self.full_config)
+        elif self.config.surface.surface_category == 'liquid_water_surface':
+            self.surface = LiquidWaterSurface(self.full_config)
         elif self.config.surface.surface_category == 'glint_surface':
             self.surface = GlintSurface(self.full_config)
         elif self.config.surface.surface_category == 'thermal_surface':
