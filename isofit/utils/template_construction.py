@@ -133,6 +133,9 @@ class Pathnames:
             # isofit file should live at isofit/isofit/core/isofit.py
             self.isofit_path = os.path.dirname(os.path.dirname(os.path.dirname(isofit.__file__)))
 
+        # path to table holding refractive indices of liquid water and ice
+        self.k_water_path = os.path.join(self.isofit_path, "data", "iop", "k_liquid_water_ice.xlsx")
+
         if opt["sensor"] == "ang":
             self.noise_path = os.path.join(self.isofit_path, "data", "avirisng_noise.txt")
         elif opt["sensor"] == "avcl":
@@ -287,11 +290,11 @@ class LUTConfig:
         self.aerosol_0_spacing_min = 0
         self.aerosol_1_spacing = 0
         self.aerosol_1_spacing_min = 0
-        self.aerosol_2_spacing = 0.1
+        self.aerosol_2_spacing = 0.05
         self.aerosol_2_spacing_min = 0
         self.aerosol_0_range = [0.001, 1]
         self.aerosol_1_range = [0.001, 1]
-        self.aerosol_2_range = [0.001, 1]
+        self.aerosol_2_range = [0.1, 0.2]
 
         try:
             self.aot_550_range = gip["radiative_transfer_parameters"]["AOT550"]["default_range"]
@@ -555,7 +558,8 @@ def build_presolve_config(opt: dict, gip: dict, paths: Pathnames, h2o_lut_grid: 
             "surface": {
                 "surface_category": gip["options"]["surface_category"],
                 "surface_file": paths.surface_working_path,
-                "select_on_init": True
+                "select_on_init": True,
+                "path_k": paths.k_water_path
             },
             "radiative_transfer": radiative_transfer_config
         },
@@ -741,7 +745,8 @@ def build_main_config(opt: dict, gip: dict, tsip: dict, paths: Pathnames, lut_pa
             "surface": {
                 "surface_file": paths.surface_working_path,
                 "surface_category": surface_category,
-                "select_on_init": True
+                "select_on_init": True,
+                "path_k": paths.k_water_path
             },
             "radiative_transfer": radiative_transfer_config
         },

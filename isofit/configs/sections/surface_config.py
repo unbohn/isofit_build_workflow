@@ -48,10 +48,14 @@ class SurfaceConfig(BaseConfigSection):
         self._selection_metric_type = str
         self.selection_metric = 'Euclidean'
 
+        self._path_k_type = str
+        self.path_k = None
+        """Path to refractive indices of different water phases for applying surface liquid water retrieval."""
+
         # Surface Thermal
         self._emissivity_for_surface_T_init_type = float
         self.emissivity_for_surface_T_init = 0.98
-        """ Initial Value recommended by Glynn Hulley."""
+        """Initial Value recommended by Glynn Hulley."""
 
         self._surface_T_prior_sigma_degK_type = float
         self.surface_T_prior_sigma_degK = 1.

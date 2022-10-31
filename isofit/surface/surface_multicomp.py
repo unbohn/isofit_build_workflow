@@ -93,6 +93,9 @@ class MultiComponentSurface(Surface):
         self.idx_lamb = np.arange(self.n_wl)
         self.n_state = len(self.statevec_names)
 
+        if config.surface_category == 'liquid_water_surface':
+            self.path_k = config.path_k
+
     def component(self, x, geom):
         """We pick a surface model component using the Mahalanobis distance.
 

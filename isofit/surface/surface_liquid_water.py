@@ -20,6 +20,7 @@
 
 import numpy as np
 import pandas as pd
+from scipy.optimize import least_squares
 
 from ..core.common import table_to_array
 from .surface_multicomp import MultiComponentSurface
@@ -35,19 +36,18 @@ class LiquidWaterSurface(MultiComponentSurface):
         super().__init__(full_config)
 
         # TODO: Enforce this attribute in the config, not here (this is hidden)
-        self.statevec_names.extend(['Liquid_Water'])
-        self.scale.extend([1.0])
-        self.init.extend([0.02])
-        self.bounds.extend([[0, 0.5]])
-        self.n_state = self.n_state + 1
-        self.liquid_water_ind = len(self.statevec_names) - 1
+        self.statevec_names.extend(['Liquid_Water', 'Intercept', 'Slope'])
+        self.scale.extend([1.0, 1.0, 1.0])
+        self.init.extend([0.02, 0.3, 0.0002])
+        self.bounds.extend([[0, 0.5], [0, 1.0], [-0.0004, 0.0004]])
+        self.n_state = self.n_state + 3
+        self.liquid_water_ind = len(self.statevec_names) - 3
 
         self.liquid_water_feature_left = np.argmin(abs(1050 - self.wl))
         self.liquid_water_feature_right = np.argmin(abs(1250 - self.wl))
 
         self.wl_sel = self.wl[self.liquid_water_feature_left:self.liquid_water_feature_right + 1]
 
-        self.path_k = "../../data/iop/k_liquid_water_ice.xlsx"
         self.k_wi = pd.read_excel(io=self.path_k, engine='openpyxl')
         self.wvl_water, self.k_water = table_to_array(k_wi=self.k_wi, a=0, b=982, col_wvl="wvl_6", col_k="T = 20°C")
         self.kw = np.interp(x=self.wl_sel, xp=self.wvl_water, fp=self.k_water)
@@ -57,7 +57,7 @@ class LiquidWaterSurface(MultiComponentSurface):
         """Mean of prior distribution, calculated at state x."""
 
         mu = MultiComponentSurface.xa(self, x_surface, geom)
-        mu[self.liquid_water_ind] = self.init[self.liquid_water_ind]
+        mu[self.liquid_water_ind:] = self.init[self.liquid_water_ind:]
         return mu
 
     def Sa(self, x_surface, geom):
@@ -66,8 +66,8 @@ class LiquidWaterSurface(MultiComponentSurface):
         normalize the result for the calling function."""
 
         Cov = MultiComponentSurface.Sa(self, x_surface, geom)
-        f = np.array([[(1e3 * self.scale[self.liquid_water_ind])**2]])
-        Cov[self.liquid_water_ind, self.liquid_water_ind] = f
+        f = (1000 * np.array(self.scale[self.liquid_water_ind:]))**2
+        Cov[self.liquid_water_ind:, self.liquid_water_ind:] = f
         return Cov
 
     def fit_params(self, rfl_meas, geom, *args):
@@ -75,21 +75,34 @@ class LiquidWaterSurface(MultiComponentSurface):
 
         rfl_meas_sel = rfl_meas[self.liquid_water_feature_left:self.liquid_water_feature_right+1]
 
-        intercept = rfl_meas_sel[-1] - ((rfl_meas_sel[0] - rfl_meas_sel[-1]) /
-                                        (self.wl_sel[0] - self.wl_sel[-1])) * self.wl_sel[-1]
-        slope = (rfl_meas_sel[0] - rfl_meas_sel[-1]) / (self.wl_sel[0] - self.wl_sel[-1])
-
-        attenuation = rfl_meas_sel / (intercept + slope * self.wl_sel)
-        dw = -(np.log(attenuation) / 1e7 / self.abs_co_w)
+        x_opt = least_squares(
+            fun=self.err_obj,
+            x0=self.init[self.liquid_water_ind:],
+            jac='2-point',
+            method='trf',
+            bounds=(np.array([self.bounds[ii][0] for ii in range(3)]),
+                    np.array([self.bounds[ii][1] for ii in range(3)])),
+            max_nfev=15,
+            args=(rfl_meas_sel,)
+        )
 
         x = MultiComponentSurface.fit_params(self, rfl_meas, geom)
-        x[self.liquid_water_ind] = dw
+        x[self.liquid_water_ind:] = x_opt.x
         return x
+
+    def err_obj(self, x, y):
+        """Function, which computes the vector of residuals between measured and modeled surface reflectance optimizing
+        for path length of surface liquid water."""
+
+        attenuation = np.exp(-x[0] * 1e7 * self.abs_co_w)
+        rho = (x[1] + x[2] * self.wl_sel) * attenuation
+        resid = rho - y
+        return resid
 
     def calc_rfl(self, x_surface, geom):
         """Reflectance (includes surface liquid water path length)."""
 
-        return self.calc_lamb(x_surface, geom) + x_surface[self.liquid_water_ind]
+        return self.calc_lamb(x_surface, geom)
 
     def drfl_dsurface(self, x_surface, geom):
         """Partial derivative of reflectance with respect to state vector,
