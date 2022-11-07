@@ -100,6 +100,79 @@ def heuristic_atmosphere(RT: RadiativeTransfer, instrument, x_RT, x_instrument, 
     return x_new
 
 
+def three_phases_of_water(RT: RadiativeTransfer, instrument, x_RT, x_instrument,  meas, geom):
+    """From a given radiance, estimate atmospheric state with band ratios.
+    Used to initialize gradient descent inversions."""
+
+    # Identify the latest instrument wavelength calibration (possibly
+    # state-dependent) and identify channel numbers for the region of water absorption.
+    wl, fwhm = instrument.calibration(x_instrument)
+    feature_left = np.argmin(abs(850 - wl))
+    feature_right = np.argmin(abs(1100 - wl))
+    wl_sel = wl[feature_left:feature_right + 1]
+    if not (any(RT.wl > 850) and any(RT.wl < 1050)):
+        return x_RT
+    x_new = x_RT.copy()
+
+    # Figure out which RT object we are using
+    # TODO: this is currently very specific to vswir-tir 2-mode, eventually generalize
+    my_RT = None
+    for rte in RT.rt_engines:
+        if rte.treat_as_emissive is False:
+            my_RT = rte
+            break
+    if not my_RT:
+        raise ValueError('No suiutable RT object for initialization')
+
+    # Retrieval of atmospheric water vapor based on fitting the absorption lines of the three phases of water.
+    # Depending on the radiative transfer model we are using, this state parameter could go by several names.
+    for h2oname in ['H2OSTR', 'h2o']:
+
+        if h2oname not in RT.statevec_names:
+            continue
+
+        # ignore unused names
+        if h2oname not in my_RT.lut_names:
+            continue
+
+        # find the index in the lookup table associated with water vapor
+        ind_lut = my_RT.lut_names.index(h2oname)
+        ind_sv = RT.statevec_names.index(h2oname)
+        wvs, lws = [], []
+
+        # We iterate through every possible grid point in the lookup table,
+        # calculating the band ratio that we would see if this were the
+        # atmospheric H2O content.  It assumes that defaults for all other
+        # atmospheric parameters (such as aerosol, if it is there).
+        for h2o in my_RT.lut_grids[ind_lut]:
+
+            # Get Atmospheric terms at high spectral resolution
+            x_RT_2 = x_RT.copy()
+            x_RT_2[ind_sv] = h2o
+            rhi = RT.get_shared_rtm_quantities(x_RT_2, geom)
+            rhoatm = instrument.sample(x_instrument, RT.wl, rhi['rhoatm'])
+            transm = instrument.sample(x_instrument, RT.wl, rhi['transm'])
+            sphalb = instrument.sample(x_instrument, RT.wl, rhi['sphalb'])
+            solar_irr = instrument.sample(x_instrument, RT.wl, RT.solar_irr)
+
+            # Assume no surface emission.  "Correct" the at-sensor radiance
+            # using this presumed amount of water vapor, and measure the
+            # resulting residual (as measured from linear interpolation across
+            # the absorption feature)
+            rho = meas * np.pi / (solar_irr * RT.coszen)
+            r = 1.0 / (transm / (rho - rhoatm) + sphalb)
+            ratios.append((r[b945]*2.0)/(r[b1040]+r[b865]))
+            h2os.append(h2o)
+
+        # Finally, interpolate to determine the actual water vapor level that
+        # would optimize the continuum-relative correction
+        p = interp1d(h2os, ratios)
+        bounds = (h2os[0]+0.001, h2os[-1]-0.001)
+        best = min1d(lambda h: abs(1-p(h)), bounds=bounds, method='bounded')
+        x_new[ind_sv] = best.x
+    return x_new
+
+
 def invert_algebraic(surface, RT: RadiativeTransfer, instrument, x_surface, 
         x_RT, x_instrument, meas, geom):
     """Inverts radiance algebraically using Lambertian assumptions to get a 
