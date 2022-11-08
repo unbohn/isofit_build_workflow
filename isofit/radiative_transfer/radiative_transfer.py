@@ -126,6 +126,17 @@ class RadiativeTransfer():
 
         return self.pack_arrays(ret)
 
+    def calc_rdn_water_feature(self, x_RT, rfl, Ls, geom, feature):
+        r = self.get_shared_rtm_quantities(x_RT, geom)
+        L_atm = self.get_L_atm(x_RT, geom)[feature[0]:feature[1]+1]
+        L_up = Ls * r['transup'][feature[0]:feature[1]+1]
+
+        L_down_transmitted = self.get_L_down_transmitted(x_RT, geom)[feature[0]:feature[1]+1]
+
+        ret = L_atm + L_down_transmitted * rfl / (1.0 - r['sphalb'][feature[0]:feature[1]+1] * rfl) + L_up
+
+        return ret
+
     def calc_rdn(self, x_RT, rfl, Ls, geom):
         r = self.get_shared_rtm_quantities(x_RT, geom)
         L_atm = self.get_L_atm(x_RT, geom)

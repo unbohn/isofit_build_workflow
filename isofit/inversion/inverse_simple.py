@@ -19,11 +19,14 @@
 #
 
 import numpy as np
+import os
+import pandas as pd
 from scipy.interpolate import interp1d
 from scipy.optimize import minimize_scalar as min1d
-from scipy.optimize import minimize
+from scipy.optimize import least_squares, minimize
 
-from isofit.core.common import emissive_radiance, eps
+from isofit.core.common import emissive_radiance, eps, table_to_array
+from isofit.core.forward import ForwardModel
 from isofit.radiative_transfer.radiative_transfer import RadiativeTransfer
 
 
@@ -100,19 +103,20 @@ def heuristic_atmosphere(RT: RadiativeTransfer, instrument, x_RT, x_instrument, 
     return x_new
 
 
-def three_phases_of_water(RT: RadiativeTransfer, instrument, x_RT, x_instrument,  meas, geom):
+def three_phases_of_water(FM: ForwardModel, RT: RadiativeTransfer, instrument, x_RT, x_instrument,  meas, geom):
     """From a given radiance, estimate atmospheric state with band ratios.
     Used to initialize gradient descent inversions."""
 
     # Identify the latest instrument wavelength calibration (possibly
     # state-dependent) and identify channel numbers for the region of water absorption.
     wl, fwhm = instrument.calibration(x_instrument)
+
+    if not (any(RT.wl > 850) and any(RT.wl < 1100)):
+        return x_RT
+
     feature_left = np.argmin(abs(850 - wl))
     feature_right = np.argmin(abs(1100 - wl))
     wl_sel = wl[feature_left:feature_right + 1]
-    if not (any(RT.wl > 850) and any(RT.wl < 1050)):
-        return x_RT
-    x_new = x_RT.copy()
 
     # Figure out which RT object we are using
     # TODO: this is currently very specific to vswir-tir 2-mode, eventually generalize
@@ -124,52 +128,58 @@ def three_phases_of_water(RT: RadiativeTransfer, instrument, x_RT, x_instrument,
     if not my_RT:
         raise ValueError('No suiutable RT object for initialization')
 
-    # Retrieval of atmospheric water vapor based on fitting the absorption lines of the three phases of water.
-    # Depending on the radiative transfer model we are using, this state parameter could go by several names.
-    for h2oname in ['H2OSTR', 'h2o']:
+    x_new = x_RT.copy()
 
-        if h2oname not in RT.statevec_names:
-            continue
+    init = list(x_RT) + [0.02, 0.02, 0.3, 0.0002]
+    lw_bounds = list(FM.bounds[0][FM.idx_RT]) + [0.0, 0.0, 0.0, -0.0004]
+    up_bounds = list(FM.bounds[1][FM.idx_RT]) + [0.5, 0.5, 1.0, 0.0004]
 
-        # ignore unused names
-        if h2oname not in my_RT.lut_names:
-            continue
+    # load imaginary part of liquid water refractive index and calculate wavelength dependent absorption coefficient
+    # __file__ should live at isofit/isofit/inversion/
+    isofit_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    path_k = os.path.join(isofit_path, "data", "iop", "k_liquid_water_ice.xlsx")
 
-        # find the index in the lookup table associated with water vapor
-        ind_lut = my_RT.lut_names.index(h2oname)
-        ind_sv = RT.statevec_names.index(h2oname)
-        wvs, lws = [], []
+    k_wi = pd.read_excel(io=path_k, sheet_name='Sheet1', engine='openpyxl')
 
-        # We iterate through every possible grid point in the lookup table,
-        # calculating the band ratio that we would see if this were the
-        # atmospheric H2O content.  It assumes that defaults for all other
-        # atmospheric parameters (such as aerosol, if it is there).
-        for h2o in my_RT.lut_grids[ind_lut]:
+    wl_water, k_water = table_to_array(k_wi=k_wi, a=0, b=982, col_wvl="wvl_6", col_k="T = 20°C")
+    wl_ice, k_ice = table_to_array(k_wi=k_wi, a=0, b=135, col_wvl="wvl_4", col_k="T = -7°C")
 
-            # Get Atmospheric terms at high spectral resolution
-            x_RT_2 = x_RT.copy()
-            x_RT_2[ind_sv] = h2o
-            rhi = RT.get_shared_rtm_quantities(x_RT_2, geom)
-            rhoatm = instrument.sample(x_instrument, RT.wl, rhi['rhoatm'])
-            transm = instrument.sample(x_instrument, RT.wl, rhi['transm'])
-            sphalb = instrument.sample(x_instrument, RT.wl, rhi['sphalb'])
-            solar_irr = instrument.sample(x_instrument, RT.wl, RT.solar_irr)
+    kw = np.interp(x=wl_sel, xp=wl_water, fp=k_water)
+    ki = np.interp(x=wl_sel, xp=wl_ice, fp=k_ice)
 
-            # Assume no surface emission.  "Correct" the at-sensor radiance
-            # using this presumed amount of water vapor, and measure the
-            # resulting residual (as measured from linear interpolation across
-            # the absorption feature)
-            rho = meas * np.pi / (solar_irr * RT.coszen)
-            r = 1.0 / (transm / (rho - rhoatm) + sphalb)
-            ratios.append((r[b945]*2.0)/(r[b1040]+r[b865]))
-            h2os.append(h2o)
+    abs_co_w = 4 * np.pi * kw / wl_sel
+    abs_co_i = 4 * np.pi * ki / wl_sel
 
-        # Finally, interpolate to determine the actual water vapor level that
-        # would optimize the continuum-relative correction
-        p = interp1d(h2os, ratios)
-        bounds = (h2os[0]+0.001, h2os[-1]-0.001)
-        best = min1d(lambda h: abs(1-p(h)), bounds=bounds, method='bounded')
-        x_new[ind_sv] = best.x
+    def err_obj(x, y):
+        x_RT_opt = x_RT.copy()
+        x_RT_opt[:] = x[:len(FM.idx_RT)]
+        y = y[feature_left:feature_right+1]
+
+        attenuation = np.exp(-x[len(FM.idx_RT)] * 1e7 * abs_co_w - x[len(FM.idx_RT)+1] * 1e7 * abs_co_i)
+        rho = (x[len(FM.idx_RT)+2] + x[len(FM.idx_RT)+3] * wl_sel) * attenuation
+
+        Ls = np.zeros(len(wl_sel), dtype=float)
+
+        rad = RT.calc_rdn_water_feature(x_RT=x_RT_opt,
+                                        rfl=rho,
+                                        Ls=Ls,
+                                        geom=geom,
+                                        feature=[feature_left, feature_right])
+        resid = rad - y
+        return resid
+
+    x_opt = least_squares(
+        fun=err_obj,
+        x0=init,
+        jac='2-point',
+        method='trf',
+        bounds=(np.array(lw_bounds), np.array(up_bounds)),
+        max_nfev=15,
+        args=(meas,)
+    )
+
+    x_new[:] = x_opt.x[:len(FM.idx_RT)]
+
     return x_new
 
 
@@ -233,8 +243,8 @@ def invert_simple(forward, meas, geom):
     x_surface, x_RT, x_instrument = forward.unpack(x)
 
     if vswir_present:
-        x[forward.idx_RT] = heuristic_atmosphere(RT, instrument, 
-                                                 x_RT, x_instrument,  meas, geom)
+        # x[forward.idx_RT] = heuristic_atmosphere(RT, instrument, x_RT, x_instrument,  meas, geom)
+        x[forward.idx_RT] = three_phases_of_water(forward, RT, instrument, x_RT, x_instrument, meas, geom)
 
     # Now, with atmosphere fixed, we can invert the radiance algebraically
     # via Lambertian approximations to get reflectance

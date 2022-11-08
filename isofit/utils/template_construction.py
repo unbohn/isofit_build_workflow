@@ -290,11 +290,11 @@ class LUTConfig:
         self.aerosol_0_spacing_min = 0
         self.aerosol_1_spacing = 0
         self.aerosol_1_spacing_min = 0
-        self.aerosol_2_spacing = 0.05
+        self.aerosol_2_spacing = 0.1
         self.aerosol_2_spacing_min = 0
         self.aerosol_0_range = [0.001, 1]
         self.aerosol_1_range = [0.001, 1]
-        self.aerosol_2_range = [0.1, 0.2]
+        self.aerosol_2_range = [0.001, 1]
 
         try:
             self.aot_550_range = gip["radiative_transfer_parameters"]["AOT550"]["default_range"]
