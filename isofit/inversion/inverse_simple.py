@@ -103,7 +103,14 @@ def heuristic_atmosphere(RT: RadiativeTransfer, instrument, x_RT, x_instrument, 
     return x_new
 
 
-def three_phases_of_water(FM: ForwardModel, RT: RadiativeTransfer, instrument, x_RT, x_instrument,  meas, geom):
+def three_phases_of_water(FM: ForwardModel,
+                          RT: RadiativeTransfer,
+                          instrument,
+                          x_surface,
+                          x_RT,
+                          x_instrument,
+                          meas,
+                          geom):
     """From a given radiance, estimate atmospheric state with band ratios.
     Used to initialize gradient descent inversions."""
 
@@ -112,7 +119,7 @@ def three_phases_of_water(FM: ForwardModel, RT: RadiativeTransfer, instrument, x
     wl, fwhm = instrument.calibration(x_instrument)
 
     if not (any(RT.wl > 850) and any(RT.wl < 1100)):
-        return x_RT
+        return x_surface, x_RT
 
     feature_left = np.argmin(abs(850 - wl))
     feature_right = np.argmin(abs(1100 - wl))
@@ -126,9 +133,10 @@ def three_phases_of_water(FM: ForwardModel, RT: RadiativeTransfer, instrument, x
             my_RT = rte
             break
     if not my_RT:
-        raise ValueError('No suiutable RT object for initialization')
+        raise ValueError('No suitable RT object for initialization')
 
-    x_new = x_RT.copy()
+    x_new_surface = x_surface.copy()
+    x_new_RT = x_RT.copy()
 
     init = list(x_RT) + [0.02, 0.02, 0.3, 0.0002]
     lw_bounds = list(FM.bounds[0][FM.idx_RT]) + [0.0, 0.0, 0.0, -0.0004]
@@ -178,9 +186,12 @@ def three_phases_of_water(FM: ForwardModel, RT: RadiativeTransfer, instrument, x
         args=(meas,)
     )
 
-    x_new[:] = x_opt.x[:len(FM.idx_RT)]
+    x_new_RT[:] = x_opt.x[:len(FM.idx_RT)]
+    x_new_surface[len(wl)] = x_opt.x[len(FM.idx_RT)]
+    x_new_surface[len(wl) + 1] = x_opt.x[len(FM.idx_RT) + 2]
+    x_new_surface[len(wl) + 2] = x_opt.x[len(FM.idx_RT) + 3]
 
-    return x_new
+    return x_new_surface, x_new_RT
 
 
 def invert_algebraic(surface, RT: RadiativeTransfer, instrument, x_surface, 
@@ -244,7 +255,7 @@ def invert_simple(forward, meas, geom):
 
     if vswir_present:
         # x[forward.idx_RT] = heuristic_atmosphere(RT, instrument, x_RT, x_instrument,  meas, geom)
-        x[forward.idx_RT] = three_phases_of_water(forward, RT, instrument, x_RT, x_instrument, meas, geom)
+        x[forward.idx_surface], x[forward.idx_RT] = three_phases_of_water(forward, RT, instrument, x_surface, x_RT, x_instrument, meas, geom)
 
     # Now, with atmosphere fixed, we can invert the radiance algebraically
     # via Lambertian approximations to get reflectance
