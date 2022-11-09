@@ -139,7 +139,6 @@ class Inversion:
                                                          max_hash_size=self.max_table_size)
             return xa_free, Sa_free, Sa_free_inv, Sa_free_inv_sqrt
 
-
     def calc_prior(self, x, geom):
         """Calculate prior distribution of radiance. This depends on the 
         location in the state space. Return the inverse covariance and 
@@ -187,7 +186,6 @@ class Inversion:
         for i in range(wn):
             Seps_win[i, :] = Seps[self.winidx[i], self.winidx]
         return svd_inv_sqrt(Seps_win, hashtable=self.hashtable, max_hash_size=self.max_table_size)
-
 
     def jacobian(self, x_free, geom, Seps_inv_sqrt) -> np.ndarray:
         """Calculate measurement Jacobian and prior Jacobians with
@@ -329,7 +327,7 @@ class Inversion:
             if len(self.inds_preseed) > 0:
                 x0[self.inds_preseed] = combo
 
-            # Record initializaation state
+            # Record initialization state
             geom.x_surf_init = x[self.fm.idx_surface]
             geom.x_RT_init = x[self.fm.idx_RT]
 
@@ -371,7 +369,6 @@ class Inversion:
 
         final_solution = np.array(solutions[np.argmin(costs)])
         return final_solution
-
 
     def forward_uncertainty(self, x, meas, geom):
         """

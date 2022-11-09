@@ -103,15 +103,15 @@ def heuristic_atmosphere(RT: RadiativeTransfer, instrument, x_RT, x_instrument, 
     return x_new
 
 
-def three_phases_of_water(FM: ForwardModel,
-                          RT: RadiativeTransfer,
-                          instrument,
-                          x_surface,
-                          x_RT,
-                          x_instrument,
-                          meas,
-                          geom):
-    """From a given radiance, estimate atmospheric state with band ratios.
+def invert_three_phases_of_water(FM: ForwardModel,
+                                 RT: RadiativeTransfer,
+                                 instrument,
+                                 x_surface,
+                                 x_RT,
+                                 x_instrument,
+                                 meas,
+                                 geom):
+    """From a given radiance, estimate atmospheric state based on fitting the three phases of water.
     Used to initialize gradient descent inversions."""
 
     # Identify the latest instrument wavelength calibration (possibly
@@ -168,11 +168,14 @@ def three_phases_of_water(FM: ForwardModel,
 
         Ls = np.zeros(len(wl_sel), dtype=float)
 
-        rad = RT.calc_rdn_water_feature(x_RT=x_RT_opt,
-                                        rfl=rho,
-                                        Ls=Ls,
-                                        geom=geom,
-                                        feature=[feature_left, feature_right])
+        rad = RT.calc_rdn_water_feature(
+            x_RT=x_RT_opt,
+            rfl=rho,
+            Ls=Ls,
+            geom=geom,
+            feature=[feature_left, feature_right]
+        )
+
         resid = rad - y
         return resid
 
@@ -254,8 +257,26 @@ def invert_simple(forward, meas, geom):
     x_surface, x_RT, x_instrument = forward.unpack(x)
 
     if vswir_present:
-        # x[forward.idx_RT] = heuristic_atmosphere(RT, instrument, x_RT, x_instrument,  meas, geom)
-        x[forward.idx_surface], x[forward.idx_RT] = three_phases_of_water(forward, RT, instrument, x_surface, x_RT, x_instrument, meas, geom)
+        if forward.config.surface.surface_category == 'liquid_water_surface':
+            x[forward.idx_surface], x[forward.idx_RT] = invert_three_phases_of_water(
+                FM=forward,
+                RT=RT,
+                instrument=instrument,
+                x_surface=x_surface,
+                x_RT=x_RT,
+                x_instrument=x_instrument,
+                meas=meas,
+                geom=geom
+            )
+        else:
+            x[forward.idx_RT] = heuristic_atmosphere(
+                RT=RT,
+                instrument=instrument,
+                x_RT=x_RT,
+                x_instrument=x_instrument,
+                meas=meas,
+                geom=geom
+            )
 
     # Now, with atmosphere fixed, we can invert the radiance algebraically
     # via Lambertian approximations to get reflectance
@@ -266,7 +287,7 @@ def invert_simple(forward, meas, geom):
 
     # Condition thermal part on the VSWIR portion. Only works for
     # Multicomponent surfaces. Finds the cluster nearest the VSWIR heuristic
-    # inversion and uses it for the TIR suface initialization.
+    # inversion and uses it for the TIR suface initialization
     if tir_present:
         tir_idx = np.where(forward.surface.wl > 3000)[0]
 
@@ -278,8 +299,11 @@ def invert_simple(forward, meas, geom):
         else:
             rfl_est = 0.03 * np.ones(len(forward.surface.wl))
 
-    # Now we have an estimated reflectance. Fit the surface parameters.
-    x_surface[forward.idx_surface] = forward.surface.fit_params(rfl_est, geom)
+    # Now we have an estimated reflectance. Fit the surface parameters
+    if forward.config.surface.surface_category == 'liquid_water_surface':
+        x_surface[:len(rfl_est)] = forward.surface.fit_params(rfl_est, geom)
+    else:
+        x_surface[forward.idx_surface] = forward.surface.fit_params(rfl_est, geom)
 
     # Find temperature of emissive surfaces
     if tir_present:
@@ -297,7 +321,7 @@ def invert_simple(forward, meas, geom):
 
         # These tend to have high transmission factors; the emissivity of most
         # materials is nearly 1 for these bands, so they are good for
-        # initializing the surface temperature.
+        # initializing the surface temperature
         clearest_wavelengths = [10125., 10390.00, 10690.00]
 
         # This is fragile if other instruments have different wavelength
