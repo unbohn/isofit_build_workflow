@@ -103,6 +103,54 @@ def heuristic_atmosphere(RT: RadiativeTransfer, instrument, x_RT, x_instrument, 
     return x_new
 
 
+def invert_aod(RT: RadiativeTransfer, instrument, x_surface, x_RT, x_instrument, meas, geom):
+
+    # Identify the latest instrument wavelength calibration (possibly
+    # state-dependent) and identify channel numbers for the region of water absorption.
+    wl, fwhm = instrument.calibration(x_instrument)
+
+    ind_sv = RT.statevec_names.index("AOT550")
+
+    b480 = np.argmin(abs(480 - wl))
+    b650 = np.argmin(abs(650 - wl))
+    b2200 = np.argmin(abs(2200 - wl))
+
+    ddv_rfl = x_surface.copy()
+
+    rfl_blue = x_surface[b2200] * 0.25 + 0.005
+    rfl_red = x_surface[b2200] * 0.5
+
+    ddv_rfl[b480] = rfl_blue
+    ddv_rfl[b650] = rfl_red
+
+    ls_params = {
+        'method': 'trf',
+        'bounds': (0.001, 1.0),
+        'max_nfev': 100
+    }
+
+    x_new_RT = x_RT.copy()
+
+    def err_obj(x, y):
+        x_RT_opt = x_RT.copy()
+        x_RT_opt[ind_sv] = x
+
+        Ls = np.zeros(len(wl), dtype=float)
+
+        rad = RT.calc_rdn(x_RT=x_RT_opt, rfl=ddv_rfl, Ls=Ls, geom=geom)
+
+        resid = rad - y
+        resid = resid[0, :]
+        resid = resid[[rfl_blue, rfl_red]]
+        return resid
+
+    x_opt = least_squares(fun=err_obj, x0=0.1, jac='2-point', **ls_params, args=(meas,))
+
+    x_new_RT[ind_sv] = x_opt.x
+
+    return x_new_RT
+
+
 def invert_three_phases_of_water(FM: ForwardModel,
                                  RT: RadiativeTransfer,
                                  instrument,
