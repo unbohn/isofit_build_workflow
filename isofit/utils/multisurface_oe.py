@@ -46,11 +46,11 @@ def main(rawargs=None):
             raise ValueError('argument ' + err_str)
 
     # Check file sizes match
-    rdn_dataset = envi.open(args.input_radiance)
+    rdn_dataset = envi.open(args.input_radiance + ".hdr")
     rdn_size = rdn_dataset.shape[:2]
 
     for infile_name in ['input_loc', 'input_obs']:
-        input_dataset = envi.open(infiles[infile_name])
+        input_dataset = envi.open(infiles[infile_name] + ".hdr")
         input_size = input_dataset.shape[:2]
         if not (input_size[0] == rdn_size[0] and input_size[1] == rdn_size[1]):
             err_str = f'Input file: {infile_name} size is {input_size}, ' \
@@ -246,28 +246,38 @@ def main(rawargs=None):
 
     # Run surface type classification
     detected_surface_types = []
+
     if len(tsip.items()) > 0:
-        surface_type_labels = define_surface_types(tsip=tsip, rdnfile=paths.rdn_subs_path, obsfile=paths.obs_subs_path,
-                                                   out_class_path=paths.class_subs_path, wl=wl, fwhm=fwhm)
+        available_surface_types = ["base", "cloud", "water"]
+
+        surface_type_labels = define_surface_types(
+            tsip=tsip,
+            rdnfile=paths.rdn_subs_path,
+            obsfile=paths.obs_subs_path,
+            out_class_path=paths.class_subs_path,
+            wl=wl,
+            fwhm=fwhm
+        )
+
         un_surface_type_labels = np.unique(surface_type_labels)
         un_surface_type_labels = un_surface_type_labels[un_surface_type_labels != -1].astype(int)
 
         for ustl in un_surface_type_labels:
-            # ToDo: get surface type names from config
-            logging.info(f'Found surface type: {["base", "cloud", "water"][ustl]}')
-            detected_surface_types.append(["base", "cloud", "water"][ustl])
+            logging.info(f"Found surface type: {available_surface_types[ustl]}")
+            detected_surface_types.append(available_surface_types[ustl])
 
-        surface_types = envi.open(envi_header(paths.class_subs_path)).open_memmap(interleave='bip').copy()
+        surface_types = envi.open(envi_header(paths.class_subs_path)).open_memmap(interleave="bip").copy()
 
         # Break up input files based on surface type
-        for _st, surface_type in enumerate(detected_surface_types):
-            paths.add_surface_subs_files(surface_type=surface_type)
-            copy_file_subset(surface_types == _st, [(paths.rdn_subs_path,
-                                                     paths.surface_subs_files[surface_type]['rdn']),
-                                                    (paths.loc_subs_path,
-                                                     paths.surface_subs_files[surface_type]['loc']),
-                                                    (paths.obs_subs_path,
-                                                     paths.surface_subs_files[surface_type]['obs'])])
+        for _st, surface_type in enumerate(available_surface_types):
+            if surface_type in detected_surface_types:
+                paths.add_surface_subs_files(surface_type=surface_type)
+                copy_file_subset(surface_types == _st, [(paths.rdn_subs_path,
+                                                         paths.surface_subs_files[surface_type]["rdn"]),
+                                                        (paths.loc_subs_path,
+                                                         paths.surface_subs_files[surface_type]["loc"]),
+                                                        (paths.obs_subs_path,
+                                                         paths.surface_subs_files[surface_type]["obs"])])
     else:
         surface_type_labels = None
 

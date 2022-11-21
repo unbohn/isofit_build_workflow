@@ -20,17 +20,16 @@
 
 import numpy as np
 from copy import deepcopy
-from scipy.linalg import det, norm, pinv, sqrtm, inv, block_diag
-from importlib import import_module
+from scipy.linalg import block_diag
 from scipy.interpolate import interp1d
 from scipy.io import loadmat
 
-from .common import recursive_replace, eps
+from .common import eps
 from .instrument import Instrument
 from ..radiative_transfer.radiative_transfer import RadiativeTransfer
 from isofit.configs import Config
 
-from isofit.surface import Surface, ThermalSurface, MultiComponentSurface, GlintSurface, LUTSurface
+from isofit.surface import Surface, ThermalSurface, MultiComponentSurface, GlintSurface, SnowSurface, LUTSurface
 
 
 ### Classes ###
@@ -82,6 +81,8 @@ class ForwardModel:
             self.surface = MultiComponentSurface(self.full_config)
         elif self.config.surface.surface_category == 'glint_surface':
             self.surface = GlintSurface(self.full_config)
+        elif self.config.surface.surface_category == 'snow_surface':
+            self.surface = SnowSurface(self.full_config)
         elif self.config.surface.surface_category == 'thermal_surface':
             self.surface = ThermalSurface(self.full_config)
         elif self.config.surface.surface_category == 'lut_surface':

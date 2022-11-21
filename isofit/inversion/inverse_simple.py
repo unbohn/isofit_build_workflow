@@ -120,6 +120,97 @@ def heuristic_atmosphere(RT: RadiativeTransfer, instrument: Instrument, x_RT: np
     return x_new
 
 
+def invert_three_phases_of_water(FM: ForwardModel,
+                                 RT: RadiativeTransfer,
+                                 instrument,
+                                 x_surface,
+                                 x_RT,
+                                 x_instrument,
+                                 meas,
+                                 geom):
+    """From a given radiance, estimate atmospheric state based on fitting the three phases of water.
+    Used to initialize gradient descent inversions."""
+
+    # Identify the latest instrument wavelength calibration (possibly
+    # state-dependent) and identify channel numbers for the region of water absorption.
+    wl, fwhm = instrument.calibration(x_instrument)
+
+    if not (any(RT.wl > 850) and any(RT.wl < 1100)):
+        return x_surface, x_RT
+
+    feature_left = np.argmin(abs(850 - wl))
+    feature_right = np.argmin(abs(1100 - wl))
+    wl_sel = wl[feature_left:feature_right + 1]
+
+    # Figure out which RT object we are using
+    # TODO: this is currently very specific to vswir-tir 2-mode, eventually generalize
+    my_RT = None
+    for rte in RT.rt_engines:
+        if rte.treat_as_emissive is False:
+            my_RT = rte
+            break
+    if not my_RT:
+        raise ValueError('No suitable RT object for initialization')
+
+    x_new_surface = x_surface.copy()
+    x_new_RT = x_RT.copy()
+
+    init = list(x_RT) + [0.02, 0.02, 0.3, 0.0002]
+    lw_bounds = list(FM.bounds[0][FM.idx_RT]) + [0.0, 0.0, 0.0, -0.0004]
+    up_bounds = list(FM.bounds[1][FM.idx_RT]) + [0.5, 50.0, 1.0, 0.0004]
+
+    # load imaginary part of liquid water refractive index and calculate wavelength dependent absorption coefficient
+    # __file__ should live at isofit/isofit/inversion/
+    isofit_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    path_k = os.path.join(isofit_path, "data", "iop", "k_liquid_water_ice.xlsx")
+
+    k_wi = pd.read_excel(io=path_k, sheet_name='Sheet1', engine='openpyxl')
+
+    wl_water, k_water = get_refractive_index(k_wi=k_wi, a=0, b=982, col_wvl="wvl_6", col_k="T = 20°C")
+    wl_ice, k_ice = get_refractive_index(k_wi=k_wi, a=0, b=135, col_wvl="wvl_4", col_k="T = -7°C")
+
+    kw = np.interp(x=wl_sel, xp=wl_water, fp=k_water)
+    ki = np.interp(x=wl_sel, xp=wl_ice, fp=k_ice)
+
+    abs_co_w = 4 * np.pi * kw / wl_sel
+    abs_co_i = 4 * np.pi * ki / wl_sel
+
+    def err_obj(x, y):
+        x_RT_opt = x_RT.copy()
+        x_RT_opt[:] = x[:len(FM.idx_RT)]
+        y = y[feature_left:feature_right+1]
+
+        attenuation = np.exp(-x[len(FM.idx_RT)] * 1e7 * abs_co_w - x[len(FM.idx_RT)+1] * 1e7 * abs_co_i)
+        rho = (x[len(FM.idx_RT)+2] + x[len(FM.idx_RT)+3] * wl_sel) * attenuation
+
+        Ls = np.zeros(len(wl_sel), dtype=float)
+
+        rad = RT.calc_rdn_water_feature(
+            x_RT=x_RT_opt,
+            rfl=rho,
+            Ls=Ls,
+            geom=geom,
+            feature=[feature_left, feature_right]
+        )
+
+        resid = rad - y
+        return resid
+
+    x_opt = least_squares(
+        fun=err_obj,
+        x0=init,
+        jac='2-point',
+        method='trf',
+        bounds=(np.array(lw_bounds), np.array(up_bounds)),
+        max_nfev=15,
+        args=(meas,)
+    )
+
+    x_new_RT[:] = x_opt.x[:len(FM.idx_RT)]
+
+    return x_new_RT
+
+
 def invert_algebraic(surface: Surface, RT: RadiativeTransfer, instrument: Instrument, x_surface: np.array, 
                      x_RT: np.array, x_instrument: np.array, meas: np.array, geom: Geometry):
     """Inverts radiance algebraically using Lambertian assumptions to get a 
@@ -306,8 +397,26 @@ def invert_simple(forward: ForwardModel, meas: np.array, geom: Geometry):
     x_surface, x_RT, x_instrument = forward.unpack(x)
 
     if vswir_present:
-        x[forward.idx_RT] = heuristic_atmosphere(RT, instrument, 
-                                                 x_RT, x_instrument,  meas, geom)
+        if forward.config.surface.surface_category == 'snow_surface':
+            x[forward.idx_RT] = invert_three_phases_of_water(
+                FM=forward,
+                RT=RT,
+                instrument=instrument,
+                x_surface=x_surface,
+                x_RT=x_RT,
+                x_instrument=x_instrument,
+                meas=meas,
+                geom=geom
+            )
+        else:
+            x[forward.idx_RT] = heuristic_atmosphere(
+                RT=RT,
+                instrument=instrument,
+                x_RT=x_RT,
+                x_instrument=x_instrument,
+                meas=meas,
+                geom=geom
+            )
 
     # Now, with atmosphere fixed, we can invert the radiance algebraically
     # via Lambertian approximations to get reflectance
