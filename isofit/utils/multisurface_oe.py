@@ -13,6 +13,7 @@ import yaml
 from collections import OrderedDict
 from datetime import datetime
 from shutil import copyfile
+import multiprocessing
 
 from isofit.utils.template_construction import LUTConfig, Pathnames, build_presolve_config, calc_modtran_max_water,\
     define_surface_types, copy_file_subset, get_metadata_from_obs, get_metadata_from_loc, write_modtran_template,\
@@ -232,7 +233,8 @@ def main(rawargs=None):
         segment(spectra=(paths.radiance_working_path, paths.lbl_working_path), nodata_value=-9999,
                 npca=5 if not opt['n_pca'] else opt['n_pca'],
                 segsize=400 if not opt['segmentation_size'] else opt['segmentation_size'],
-                nchunk=256 if not opt['chunksize'] else opt['chunksize'], n_cores=opt["n_cores"],
+                nchunk=256 if not opt['chunksize'] else opt['chunksize'],
+                n_cores=multiprocessing.cpu_count() if not opt["n_cores"] else opt["n_cores"],
                 loglevel=args.logging_level, logfile=args.log_file)
 
     # Extract input data per segment
@@ -241,7 +243,8 @@ def main(rawargs=None):
         if not exists(outp):
             logging.info('Extracting ' + outp)
             extractions(inputfile=inp, labels=paths.lbl_working_path, output=outp,
-                        chunksize=256 if not opt['chunksize'] else opt['chunksize'], flag=-9999, n_cores=opt["n_cores"],
+                        chunksize=256 if not opt['chunksize'] else opt['chunksize'], flag=-9999,
+                        n_cores=multiprocessing.cpu_count() if not opt["n_cores"] else opt["n_cores"],
                         loglevel=args.logging_level, logfile=args.log_file)
 
     # Run surface type classification

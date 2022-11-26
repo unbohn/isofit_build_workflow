@@ -3,24 +3,24 @@
 # Authors: Philip G. Brodrick and Niklas Bohn
 #
 
-import logging
-import os
-import json
-import numpy as np
 import argparse
-from isofit.core.common import envi_header
-from shutil import copyfile
 from datetime import datetime
-import subprocess
-from sklearn import mixture
-from sys import platform
-from spectral.io import envi
-from typing import List
+import json
+import logging
+import multiprocessing
+import numpy as np
+import os
 from osgeo import gdal
+from shutil import copyfile
+from sklearn import mixture
+from spectral.io import envi
+import subprocess
+from sys import platform
+from typing import List
 import utm
 
 from isofit.core import isofit
-from isofit.core.common import resample_spectrum
+from isofit.core.common import envi_header, resample_spectrum
 
 
 class Pathnames:
@@ -521,7 +521,7 @@ def build_presolve_config(opt: dict, gip: dict, paths: Pathnames, h2o_lut_grid: 
                              "ray_temp_dir": paths.ray_temp_dir,
                              'inversion': {
                                  'windows': gip["options"]["inversion_windows"]},
-                             "n_cores": 1 if not opt["n_cores"] else opt["n_cores"],
+                             "n_cores": multiprocessing.cpu_count() if not opt["n_cores"] else opt["n_cores"],
                              "debug_mode": opt["debug_mode"]}
                          }
 
@@ -686,7 +686,7 @@ def build_main_config(opt: dict, gip: dict, tsip: dict, paths: Pathnames, lut_pa
                              "implementation": {
                                  "ray_temp_dir": paths.ray_temp_dir,
                                  "inversion": {"windows": gip["options"]["inversion_windows"]},
-                                 "n_cores": 1 if not opt["n_cores"] else opt["n_cores"],
+                                 "n_cores": multiprocessing.cpu_count() if not opt["n_cores"] else opt["n_cores"],
                                  "debug_mode": opt["debug_mode"]}
                              }
 

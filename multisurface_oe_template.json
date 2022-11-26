@@ -1,7 +1,7 @@
 {
     "general_options": {
         "sensor": "emit",
-        "n_cores": 8,
+        "n_cores": null,
         "segmentation_size": 400,
         "num_neighbors": 15,
         "chunksize": 256,
