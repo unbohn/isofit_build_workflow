@@ -19,9 +19,12 @@
 #
 
 import numpy as np
+import os
+import pandas as pd
 
 from .surface_multicomp import MultiComponentSurface
 from isofit.configs import Config
+from isofit.core.common import table_to_array
 
 
 class LiquidWaterSurface(MultiComponentSurface):
@@ -33,19 +36,29 @@ class LiquidWaterSurface(MultiComponentSurface):
         super().__init__(full_config)
 
         # TODO: Enforce this attribute in the config, not here (this is hidden)
-        self.statevec_names.extend(['Liquid_Water', 'Intercept', 'Slope'])
-        self.scale.extend([1.0, 1.0, 1.0])
-        self.init.extend([0.02, 0.3, 0.0002])
-        self.bounds.extend([[0, 0.5], [0, 1.0], [-0.0004, 0.0004]])
+        self.statevec_names.extend(['Liquid_Water'])
+        self.scale.extend([1.0])
+        self.init.extend([0.02])
+        self.bounds.extend([[0, 0.5]])
 
-        self.n_state = self.n_state + 3
-        self.lw_ind = len(self.statevec_names) - 3
+        self.n_state = self.n_state + 1
+        self.lw_ind = len(self.statevec_names) - 1
+
+        # load imaginary part of liquid water refractive index and calculate wavelength dependent absorption coefficient
+        # __file__ should live at isofit/isofit/inversion/
+        isofit_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+        path_k = os.path.join(isofit_path, "data", "iop", "k_liquid_water_ice.xlsx")
+
+        k_wi = pd.read_excel(io=path_k, sheet_name='Sheet1', engine='openpyxl')
+        wl_water, k_water = table_to_array(k_wi=k_wi, a=0, b=982, col_wvl="wvl_6", col_k="T = 20°C")
+        kw = np.interp(x=self.wl, xp=wl_water, fp=k_water)
+
+        self.abs_co_w = 4 * np.pi * kw / self.wl
 
     def xa(self, x_surface, geom):
         """Mean of prior distribution, calculated at state x."""
 
         mu = MultiComponentSurface.xa(self, x_surface, geom)
-        mu[self.lw_ind:] = self.init[self.lw_ind:]
         return mu
 
     def Sa(self, x_surface, geom):
@@ -54,20 +67,23 @@ class LiquidWaterSurface(MultiComponentSurface):
         normalize the result for the calling function."""
 
         Cov = MultiComponentSurface.Sa(self, x_surface, geom)
-        f = (1000 * np.array(self.scale[self.lw_ind:])) ** 2
-        Cov[self.lw_ind:, self.lw_ind:] = np.diag(f)
+        f = (1000 * np.array(self.scale[self.lw_ind])) ** 2
+        Cov[self.lw_ind, self.lw_ind] = f
+
         return Cov
 
     def fit_params(self, rfl_meas, geom, *args):
         """Given a reflectance estimate, fit a surface state vector."""
 
         x = MultiComponentSurface.fit_params(self, rfl_meas, geom)
-        return x[:self.lw_ind]
+        return x
 
     def calc_rfl(self, x_surface, geom):
         """Returns lambertian reflectance for a given state."""
 
-        return self.calc_lamb(x_surface, geom)
+        rfl = self.calc_lamb(x_surface[:self.lw_ind], geom) * np.exp(-x_surface[self.lw_ind] * self.abs_co_w)
+
+        return rfl
 
     def drfl_dsurface(self, x_surface, geom):
         """Partial derivative of reflectance with respect to state vector,

@@ -239,8 +239,6 @@ def invert_three_phases_of_water(FM: ForwardModel,
 
     x_new_RT[:] = x_opt.x[:len(FM.idx_RT)]
     x_new_surface[len(wl)] = x_opt.x[len(FM.idx_RT)]
-    x_new_surface[len(wl) + 1] = x_opt.x[len(FM.idx_RT) + 2]
-    x_new_surface[len(wl) + 2] = x_opt.x[len(FM.idx_RT) + 3]
 
     return x_new_surface, x_new_RT
 
@@ -348,10 +346,7 @@ def invert_simple(forward, meas, geom):
             rfl_est = 0.03 * np.ones(len(forward.surface.wl))
 
     # Now we have an estimated reflectance. Fit the surface parameters
-    if forward.config.surface.surface_category == 'liquid_water_surface':
-        x_surface[:len(rfl_est)] = forward.surface.fit_params(rfl_est, geom)
-    else:
-        x_surface[forward.idx_surface] = forward.surface.fit_params(rfl_est, geom)
+    x_surface[forward.idx_surface] = forward.surface.fit_params(rfl_est, geom)
 
     # Find temperature of emissive surfaces
     if tir_present:

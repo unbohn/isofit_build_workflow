@@ -115,12 +115,11 @@ class Inversion:
         x[self.inds_free] = x_free
         return x
 
-    def calc_conditional_prior(self, x_free, geom):
+    def calc_conditional_prior(self, x, geom):
         """Calculate prior distribution of radiance. This depends on the
         location in the state space. Return the inverse covariance and
         its square root (for non-quadratic error residual calculation)."""
 
-        x = self.full_statevector(x_free)
         xa = self.fm.xa(x, geom)
         Sa = self.fm.Sa(x, geom)
 
@@ -208,15 +207,20 @@ class Inversion:
             total_jac: The complete (measurement and prior) jacobian
         """
         x = self.full_statevector(x_free)
+        x_p = x.copy()
 
         # jacobian of measurment cost term WRT full state vector.
         K = self.fm.K(x, geom)[self.winidx, :]
         K = K[:, self.inds_free]
         meas_jac = Seps_inv_sqrt.dot(K)
 
+        if self.fm.config.surface.surface_category == "liquid_water_surface":
+            rho_w = self.fm.surface.calc_rfl(x, geom)
+            x_p[:self.fm.surface.lw_ind] = rho_w
+
         # jacobian of prior cost term with respect to state vector.
         xa_free, Sa_free, Sa_free_inv, Sa_free_inv_sqrt = \
-            self.calc_conditional_prior(x_free, geom)
+            self.calc_conditional_prior(x_p, geom)
         prior_jac = Sa_free_inv_sqrt
 
         # The total cost vector (as presented to the solver) is the
@@ -250,6 +254,7 @@ class Inversion:
 
         # set up full-sized state vector
         x = self.full_statevector(x_free)
+        x_p = x.copy()
 
         # Measurement cost term.  Will calculate reflectance and Ls from
         # the state vector.
@@ -258,10 +263,14 @@ class Inversion:
         meas_window = meas[self.winidx]
         meas_resid = (est_meas_window - meas_window).dot(Seps_inv_sqrt)
 
+        if self.fm.config.surface.surface_category == "liquid_water_surface":
+            rho_w = self.fm.surface.calc_rfl(x, geom)
+            x_p[:self.fm.surface.lw_ind] = rho_w
+
         # Prior cost term
         xa_free, Sa_free, Sa_free_inv, Sa_free_inv_sqrt = \
-            self.calc_conditional_prior(x_free, geom)
-        prior_resid = (x_free - xa_free).dot(Sa_free_inv_sqrt)
+            self.calc_conditional_prior(x_p, geom)
+        prior_resid = (x_p - xa_free).dot(Sa_free_inv_sqrt)
 
         # Total cost
         total_resid = np.concatenate((meas_resid, prior_resid))
