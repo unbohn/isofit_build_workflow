@@ -301,11 +301,6 @@ class Inversion:
             # Calculate the initial solution, if needed.
             x0 = invert_simple(self.fm, meas, geom)
 
-            # Update regions outside retrieval windows to match priors
-            if self.config.priors_in_initial_guess:
-                prior_subset_idx = np.arange(len(x0))[self.fm.idx_surface[:len(meas)]][self.outside_ret_windows]
-                x0[prior_subset_idx] = self.fm.surface.xa(x0, geom)[prior_subset_idx]
-
             trajectory.append(x0)
 
             x0 = x0[self.inds_free]

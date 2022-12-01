@@ -20,77 +20,59 @@
 
 import numpy as np
 import os
-import pickle
 from scipy.optimize import least_squares
 
 from .surface_multicomp import MultiComponentSurface
+from isofit.core.common import eps, VectorInterpolator
 from isofit.configs import Config
 
 
 class SnowSurface(MultiComponentSurface):
-    """A model of the surface based on a collection of multivariate
-       Gaussians, extended with snow fractional cover and grain size terms."""
+    """A snow radiative transfer model that combines optical properties based on Mie theory and multiscattering
+    calculations using the multistream DIScrete Ordinate Radiative Transfer (DISORT) code. The surface state vector
+    holds snow grain radius, liquid water fraction as well as mass mixing ratios of various light-absorbing particles
+    (LAP), including snow algae, black carbon, and mineral dust."""
 
     def __init__(self, full_config: Config):
 
         super().__init__(full_config)
 
-        # TODO: Enforce this attribute in the config, not here (this is hidden)
-        self.statevec_names.extend(['Snow_fc', 'Snow_gs'])
-        self.scale.extend([1.0, 1.0])
-        self.init.extend([0.3, 500])
-        self.bounds.extend([[0, 1.0], [0, 1100]])
+        self.statevec_names = (['Grain_size', 'Liquid_water', 'Algae', 'Black_carbon', 'Mineral_dust'])
+        self.scale = ([1.0, 1.0, 1.0, 1.0, 1.0])
+        self.init = ([500.0, 5.0, 50000.0, 50.0, 50000.0])
+        self.bounds = np.array([[0.0, 1500.0], [0.0, 25.0], [0.0, 400000.0], [0.0, 1000.0], [0.0, 400000.0]])
 
-        self.n_state = self.n_state + 2
-        self.snow_ind = len(self.statevec_names) - 2
+        self.n_state = len(self.statevec_names)
 
+        # Load DISORT LUT
+        # __file__ should live at isofit/isofit/surface/
         isofit_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        rho_model_file = os.path.join(isofit_path, "data", "iop", "pca_models_snow_EMIT_incl_grain_size.pkl")
+        path_lut = os.path.join(isofit_path, "data", "iop", "DISORT_LUT_regular_grid.npz")
 
-        f = open(rho_model_file, 'rb')
-        models = pickle.load(f)
-        f.close()
+        with np.load(path_lut) as data:
+            state = data['x']
+            hdrf = data['y']
 
-        self.pca_rfl_snow = models['snow']['model']
-        self.pca_rfl_veg = models['veg']['model']
-        self.pca_rfl_rock = models['rock']['model']
+        grid = []
+        for ii in range(state.shape[1]):
+            grid.append(list(np.unique(state[:, ii])))
 
-        self.ind_snow = self.pca_rfl_snow.n_components
-        self.ind_veg = self.pca_rfl_snow.n_components + self.pca_rfl_veg.n_components
-        self.ind_rock = self.pca_rfl_snow.n_components + self.pca_rfl_veg.n_components + self.pca_rfl_rock.n_components
+        n = int(np.exp(np.log(state.shape[0]) / state.shape[1]))
+        data = hdrf.reshape(n, n, n, n, n, n, n, n, n, hdrf.shape[1])
 
-        state_bounds = []
-        state_x0 = []
-
-        for endmember in models.keys():
-            min2use, max2use = [0, 1]
-            sc_min = np.quantile(models[endmember]['scores'], [min2use], axis=0).T
-            sc_max = np.quantile(models[endmember]['scores'], [max2use], axis=0).T
-            x0 = np.ones(models[endmember]['scores'].shape[1]) * 0.0
-            state_bounds.extend(np.hstack((sc_min, sc_max)))
-            state_x0.extend(x0)
-
-        minbound = np.array([0.0 for a in range(len(models.keys()))])[:, np.newaxis]
-        maxbound = np.array([1.0 for a in range(len(models.keys()))])[:, np.newaxis]
-        mixing_bounds = np.hstack((minbound, maxbound))
-        x0 = np.ones(len(models.keys())) * 0.3
-        state_bounds.extend(mixing_bounds)
-        state_x0.extend(x0)
-
-        x_bounds = np.array(state_bounds)
-        self.x0 = np.array(state_x0)
+        lut = ["r", "r", "r", "r", "r", "r", "r", "r", "r"]
+        self.VecInt = VectorInterpolator(grid_input=grid, data_input=data, lut_interp_types=lut, version="mlg")
 
         self.LS_Params = {
             'method': 'trf',
-            'bounds': (x_bounds[:, 0], x_bounds[:, 1]),
+            'bounds': (self.bounds[:, 0], self.bounds[:, 1]),
             'max_nfev': 15
         }
 
     def xa(self, x_surface, geom):
         """Mean of prior distribution, calculated at state x."""
 
-        mu = MultiComponentSurface.xa(self, x_surface, geom)
-        mu[self.snow_ind:] = self.init[self.snow_ind:]
+        mu = self.init
         return mu
 
     def Sa(self, x_surface, geom):
@@ -98,57 +80,73 @@ class SnowSurface(MultiComponentSurface):
         the covariance in a normalized space (normalizing by z) and then un-
         normalize the result for the calling function."""
 
-        Cov = MultiComponentSurface.Sa(self, x_surface, geom)
-        f = (1000 * np.array(self.scale[self.snow_ind:])) ** 2
-        Cov[self.snow_ind:, self.snow_ind:] = np.diag(f)
+        f = (1000 * np.array(self.scale)) ** 2
+        Cov = np.diag(f)
         return Cov
 
     def fit_params(self, rfl_meas, geom, *args):
         """Given a reflectance estimate, fit a surface state vector
         represented by snow fractional cover and grain size."""
 
-        xopt = least_squares(self.err_obj, self.x0, jac='2-point', **self.LS_Params, args=(rfl_meas, ))
+        xopt = least_squares(self.err_obj, self.init, jac='2-point', **self.LS_Params,
+                             args=(rfl_meas, geom))
 
-        x = MultiComponentSurface.fit_params(self, rfl_meas, geom)
-        rfl_hat_snow = self.pca_rfl_snow.inverse_transform(xopt.x[:self.ind_snow])
-        x[self.snow_ind:] = np.array([xopt.x[self.ind_rock], rfl_hat_snow.T[-1]])
-        return x
+        return xopt.x
 
-    def err_obj(self, x, y):
+    def err_obj(self, x, y, geom):
 
-        x_snow = x[:self.ind_snow]
-        x_veg = x[self.ind_snow:self.ind_veg]
-        x_rock = x[self.ind_veg:self.ind_rock]
-        x_mix = x[self.ind_rock:]
+        x_hat = np.array([geom.solar_zenith, geom.solar_azimuth, geom.observer_zenith, geom.observer_azimuth,
+                          x[0], x[1], x[2], x[3], x[4]])
 
-        snow_hat = self.pca_rfl_snow.inverse_transform(x_snow)
-        veg_hat = self.pca_rfl_veg.inverse_transform(x_veg)
-        rock_hat = self.pca_rfl_rock.inverse_transform(x_rock)
-
-        rho_hat = snow_hat[:-1] * x_mix[0] + veg_hat * x_mix[1] + rock_hat * x_mix[2]
-
+        rho_hat = self.VecInt(x_hat)
         resid = rho_hat - y
 
-        constraint = np.abs(1 - sum(x_mix))
-
-        return np.hstack((resid / len(resid), constraint))
+        return resid
 
     def calc_rfl(self, x_surface, geom):
         """Returns lambertian reflectance for a given state."""
 
-        return self.calc_lamb(x_surface, geom)
+        x_hat = np.array([geom.solar_zenith, geom.solar_azimuth, geom.observer_zenith, geom.observer_azimuth,
+                          x_surface[0], x_surface[1], x_surface[2], x_surface[3], x_surface[4]])
+
+        rho_hat = self.VecInt(x_hat)
+
+        return rho_hat
+
+    def calc_lamb(self, x_surface, geom):
+        """Lambertian reflectance."""
+
+        return self.calc_rfl(x_surface, geom)
 
     def drfl_dsurface(self, x_surface, geom):
         """Partial derivative of reflectance with respect to state vector,
         calculated at x_surface."""
 
-        drfl = self.dlamb_dsurface(x_surface, geom)
-        drfl[:, self.snow_ind:] = 1
-        return drfl
+        # first the reflectance at the current state vector
+        rho_hat = self.calc_rfl(x_surface, geom)
+
+        # perturb each element of the RT state vector (finite difference)
+        drfl_dsurface = []
+        x_surfaces_perturb = x_surface + np.eye(len(x_surface)) * eps
+
+        for x_surface_perturb in list(x_surfaces_perturb):
+            rho_hat_perturb = self.calc_rfl(x_surface_perturb, geom)
+            drfl_dsurface.append((rho_hat_perturb - rho_hat) / eps)
+
+        drfl_dsurface = np.array(drfl_dsurface).T
+
+        return drfl_dsurface
+
+    def dLs_dsurface(self, x_surface, geom):
+        """Partial derivative of surface emission with respect to state vector,
+        calculated at x_surface."""
+
+        dLs = np.zeros((self.n_wl, self.n_state), dtype=float)
+
+        return dLs
 
     def summarize(self, x_surface, geom):
         """Summary of state vector."""
 
-        return MultiComponentSurface.summarize(self, x_surface, geom) + \
-            ' Snow Fractional Cover: %5.3f, Snow Grain Size: %5.3f' % (x_surface[self.snow_ind],
-                                                                       x_surface[self.snow_ind + 1])
+        return 'Grain Size: %5.3f, Liquid Water: %5.3f, Algae: %5.3f, Black Carbon: %5.3f,' \
+               'Mineral Dust: %5.3f' % (x_surface[0], x_surface[1], x_surface[2], x_surface[3], x_surface[4])
