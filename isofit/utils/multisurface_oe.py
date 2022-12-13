@@ -104,7 +104,7 @@ def main(rawargs=None):
         fid = os.path.splitext(os.path.basename(args.input_radiance))[0]
         logging.info('Flightline ID: %s' % fid)
         # parse flightline ID (PRISMA assumptions)
-        dt = datetime.strptime(args.sensor[3:], '%Y%m%d')
+        dt = datetime.strptime(fid[4:12], '%Y%m%d')
     elif opt["sensor"] == 'hyp':
         fid = os.path.split(args.input_radiance)[-1][:22]
         logging.info('Flightline ID: %s' % fid)
@@ -113,7 +113,7 @@ def main(rawargs=None):
     else:
         raise ValueError('Neither flight line ID nor datetime object could be obtained. '
                          'Please provide valid sensor name in config file '
-                         '(choose from "ang", "avcl", "prism", "neon", "emit", "NA-*", "hyp").')
+                         '(choose from "ang", "avcl", "prism", "neon", "emit", "NA-*", "hyp", "prisma").')
 
     # get path names
     paths = Pathnames(opt=opt, gip=gip, args=args, fid=fid)

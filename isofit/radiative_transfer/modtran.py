@@ -482,14 +482,14 @@ class ModtranRT(TabularRT):
         if self.multipart_transmittance:
             # Here we copy the original config and just change the surface reflectance 
             param[0]['MODTRANINPUT']['CASE'] = 0
-            param[0]['MODTRANINPUT']['SURFACE']['SURREF']= self.test_rfls[0]
+            param[0]['MODTRANINPUT']['SURFACE']['SURFP']["CSALB"] = "LAMB_CONST_0_PCT"
             param1 = deepcopy(param[0])
             param1['MODTRANINPUT']['CASE'] = 1
-            param1['MODTRANINPUT']['SURFACE']['SURREF']= self.test_rfls[1]
+            param1['MODTRANINPUT']['SURFACE']['SURFP']["CSALB"] = "LAMB_CONST_10_PCT"
             param.append(param1)
             param2 = deepcopy(param[0]) 
             param2['MODTRANINPUT']['CASE'] = 2
-            param2['MODTRANINPUT']['SURFACE']['SURREF']= self.test_rfls[2]
+            param2['MODTRANINPUT']['SURFACE']['SURFP']["CSALB"] = "LAMB_CONST_50_PCT"
             param.append(param2)
 
         return json.dumps({"MODTRAN": param}), param

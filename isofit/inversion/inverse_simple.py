@@ -155,9 +155,9 @@ def invert_three_phases_of_water(FM: ForwardModel,
     x_new_surface = x_surface.copy()
     x_new_RT = x_RT.copy()
 
-    init = list(x_RT) + [0.02, 0.02, 0.3, 0.0002]
-    lw_bounds = list(FM.bounds[0][FM.idx_RT]) + [0.0, 0.0, 0.0, -0.0004]
-    up_bounds = list(FM.bounds[1][FM.idx_RT]) + [0.5, 50.0, 1.0, 0.0004]
+    init = list(x_RT[-3:]) + [0.02, 0.02, 0.3, 0.0002]
+    lw_bounds = list(FM.bounds[0][FM.idx_RT][-3:]) + [0.0, 0.0, 0.0, -0.0004]
+    up_bounds = list(FM.bounds[1][FM.idx_RT][-3:]) + [0.5, 50.0, 1.0, 0.0004]
 
     # load imaginary part of liquid water refractive index and calculate wavelength dependent absorption coefficient
     # __file__ should live at isofit/isofit/inversion/
@@ -177,11 +177,11 @@ def invert_three_phases_of_water(FM: ForwardModel,
 
     def err_obj(x, y):
         x_RT_opt = x_RT.copy()
-        x_RT_opt[:] = x[:len(FM.idx_RT)]
+        x_RT_opt[-3:] = x[:len(FM.idx_RT[:-3])]
         y = y[feature_left:feature_right+1]
 
-        attenuation = np.exp(-x[len(FM.idx_RT)] * 1e7 * abs_co_w - x[len(FM.idx_RT)+1] * 1e7 * abs_co_i)
-        rho = (x[len(FM.idx_RT)+2] + x[len(FM.idx_RT)+3] * wl_sel) * attenuation
+        attenuation = np.exp(-x[len(FM.idx_RT[-3:])] * 1e7 * abs_co_w - x[len(FM.idx_RT[-3:])+1] * 1e7 * abs_co_i)
+        rho = (x[len(FM.idx_RT[-3:])+2] + x[len(FM.idx_RT[-3:])+3] * wl_sel) * attenuation
 
         Ls = np.zeros(len(wl_sel), dtype=float)
 
@@ -206,7 +206,7 @@ def invert_three_phases_of_water(FM: ForwardModel,
         args=(meas,)
     )
 
-    x_new_RT[:] = x_opt.x[:len(FM.idx_RT)]
+    x_new_RT[-3:] = x_opt.x[:len(FM.idx_RT[-3:])]
 
     return x_new_RT
 

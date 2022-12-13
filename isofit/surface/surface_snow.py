@@ -95,10 +95,7 @@ class SnowSurface(MultiComponentSurface):
 
     def err_obj(self, x, y, geom):
 
-        x_hat = np.array([geom.solar_zenith, geom.solar_azimuth, geom.observer_zenith, geom.observer_azimuth,
-                          x[0], x[1], x[2], x[3], x[4]])
-
-        rho_hat = self.VecInt(x_hat)
+        rho_hat = self.calc_rfl(x, geom)
         resid = rho_hat - y
 
         return resid
