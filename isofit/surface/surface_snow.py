@@ -47,7 +47,7 @@ class SnowSurface(MultiComponentSurface):
         # Load DISORT LUT
         # __file__ should live at isofit/isofit/surface/
         isofit_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        path_lut = os.path.join(isofit_path, "data", "iop", "DISORT_LUT_regular_grid.npz")
+        path_lut = os.path.join(isofit_path, "data", "iop", "DISORT_LUT_regular_grid_1m_upper_layer.npz")
 
         with np.load(path_lut) as data:
             state = data['x']
