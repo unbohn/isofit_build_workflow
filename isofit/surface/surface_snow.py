@@ -160,5 +160,5 @@ class SnowSurface(MultiComponentSurface):
     def summarize(self, x_surface, geom):
         """Summary of state vector."""
 
-        return 'Grain Size: %5.3f, Liquid Water: %5.3f, Algae: %5.3f, Black Carbon: %5.3f,' \
-               'Mineral Dust: %5.3f' % (x_surface[0], x_surface[1], x_surface[2], x_surface[3], x_surface[4])
+        return 'Grain Size: %5.3f, Liquid Water: %5.3f, Algae: %5.3f, Mineral Dust: %5.3f' % (
+            x_surface[0], x_surface[1], x_surface[2], x_surface[3])
