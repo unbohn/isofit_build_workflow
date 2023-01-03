@@ -216,7 +216,7 @@ class VectorInterpolator:
         # Set the 'cube' data to be our interpolation data
         idx = tuple([
             slice(
-                max(min(self.maxbaseinds[j]  , i  ), 0),
+                max(min(self.maxbaseinds[j], i), 0),
                 max(min(self.maxbaseinds[j]+2, i+2), 2)
             ) for j, i in enumerate(inds)
         ])
@@ -224,9 +224,9 @@ class VectorInterpolator:
 
         for i, di in enumerate(deltas):
             # Eliminate those indexes where we are outside grid range
-            if points[i] > self.gridtuples[i][-1]:
+            if points[i] >= self.gridtuples[i][-1]:
                 cube = cube[1]
-            elif points[i] < self.gridtuples[i][0]:
+            elif points[i] <= self.gridtuples[i][0]:
                 cube = cube[0]
             # Otherwise eliminate index by linear interpolation
             else:

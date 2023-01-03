@@ -37,10 +37,10 @@ class SnowSurface(MultiComponentSurface):
 
         super().__init__(full_config)
 
-        self.statevec_names = (['Grain_size', 'Liquid_water', 'Algae', 'Black_carbon', 'Mineral_dust'])
-        self.scale = ([1.0, 1.0, 1.0, 1.0, 1.0])
-        self.init = ([500.0, 5.0, 50000.0, 50.0, 50000.0])
-        self.bounds = np.array([[0.0, 1500.0], [0.0, 25.0], [0.0, 400000.0], [0.0, 1000.0], [0.0, 400000.0]])
+        self.statevec_names = (['Grain_size', 'Liquid_water', 'Algae', 'Mineral_dust'])
+        self.scale = ([1.0, 1.0, 1.0, 1.0])
+        self.init = ([300.0, 0.0, 0.0, 0.0])
+        self.bounds = np.array([[100.0, 1500.0], [0.0, 25.0], [0.0, 240000.0], [0.0, 400000.0]])
 
         self.n_state = len(self.statevec_names)
 
@@ -54,13 +54,13 @@ class SnowSurface(MultiComponentSurface):
             hdrf = data['y']
 
         grid = []
+
         for ii in range(state.shape[1]):
             grid.append(list(np.unique(state[:, ii])))
 
-        n = int(np.exp(np.log(state.shape[0]) / state.shape[1]))
-        data = hdrf.reshape(n, n, n, n, n, n, n, n, n, hdrf.shape[1])
-
-        lut = ["r", "r", "r", "r", "r", "r", "r", "r", "r"]
+        data = hdrf.reshape(len(grid[0]), len(grid[1]), len(grid[2]), len(grid[3]), len(grid[4]), len(grid[5]),
+                            len(grid[6]), hdrf.shape[1])
+        lut = ["r", "r", "r", "r", "r", "r", "r"]
         self.VecInt = VectorInterpolator(grid_input=grid, data_input=data, lut_interp_types=lut, version="mlg")
 
         self.LS_Params = {
@@ -103,12 +103,27 @@ class SnowSurface(MultiComponentSurface):
     def calc_rfl(self, x_surface, geom):
         """Returns lambertian reflectance for a given state."""
 
-        x_hat = np.array([geom.solar_zenith, geom.solar_azimuth, geom.observer_zenith, geom.observer_azimuth,
-                          x_surface[0], x_surface[1], x_surface[2], x_surface[3], x_surface[4]])
+        # calculate relative azimuth angle
+        raa = self.calc_raa(saa=geom.solar_azimuth, vaa=geom.observer_azimuth)
+        x_hat = np.array([geom.solar_zenith, geom.observer_zenith, raa, x_surface[0], x_surface[1], x_surface[2],
+                          x_surface[3]])
 
         rho_hat = self.VecInt(x_hat)
 
         return rho_hat
+
+    def calc_raa(self, saa, vaa):
+        """Calculates relative azimuth angle between observer and sun."""
+
+        if saa < 0:
+            saa = 360 + saa
+
+        raa = np.abs(vaa - saa)
+
+        if raa > 180:
+            raa = 360 - raa
+
+        return raa
 
     def calc_lamb(self, x_surface, geom):
         """Lambertian reflectance."""
