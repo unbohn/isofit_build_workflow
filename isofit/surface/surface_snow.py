@@ -105,8 +105,9 @@ class SnowSurface(MultiComponentSurface):
 
         # calculate relative azimuth angle
         raa = self.calc_raa(saa=geom.solar_azimuth, vaa=geom.observer_azimuth)
-        x_hat = np.array([geom.solar_zenith, geom.observer_zenith, raa, x_surface[0], x_surface[1], x_surface[2],
-                          x_surface[3]])
+        # calculate effective solar zenith angle
+        sza_eff = np.rad2deg(np.arccos(geom.cos_i))
+        x_hat = np.array([sza_eff, geom.observer_zenith, raa, x_surface[0], x_surface[1], x_surface[2], x_surface[3]])
 
         rho_hat = self.VecInt(x_hat)
 
