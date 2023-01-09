@@ -186,7 +186,7 @@ class ForwardModel:
         
         rfl_hi = self.upsample(self.surface.wl, rfl)
         Ls_hi = self.upsample(self.surface.wl, Ls)
-        return self.RT.calc_rdn(x_RT, rfl_hi, Ls_hi, geom)
+        return self.RT.calc_rdn(x_RT, x_surface, rfl_hi, Ls_hi, geom)
 
     def calc_meas(self, x, geom, rfl=None, Ls=None):
         """Calculate the model observation at instrument wavelengths."""
@@ -285,7 +285,7 @@ class ForwardModel:
         Ls_hi = self.upsample(self.surface.wl, Ls)
         rdn_hi = self.calc_rdn(x, geom, rfl=rfl, Ls=Ls)
 
-        drdn_dRTb = self.RT.drdn_dRTb(x_RT, rfl_hi, Ls_hi, geom)
+        drdn_dRTb = self.RT.drdn_dRTb(x_RT, x_surface, rfl_hi, Ls_hi, geom)
         dmeas_dRTb = self.instrument.sample(x_instrument, self.RT.wl,
                                             drdn_dRTb.T).T
         dmeas_dinstrumentb = self.instrument.dmeas_dinstrumentb(

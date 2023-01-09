@@ -37,17 +37,17 @@ class SnowSurface(MultiComponentSurface):
 
         super().__init__(full_config)
 
-        self.statevec_names = (['Grain_size', 'Liquid_water', 'Algae', 'Mineral_dust'])
-        self.scale = ([1.0, 1.0, 1.0, 1.0])
-        self.init = ([300.0, 0.0, 0.0, 0.0])
-        self.bounds = np.array([[100.0, 1500.0], [0.0, 25.0], [0.0, 240000.0], [0.0, 400000.0]])
+        self.statevec_names = (['Cos_i', 'Grain_size', 'Liquid_water', 'Algae', 'Mineral_dust'])
+        self.scale = ([1e-6, 1.0, 1.0, 1.0, 1.0])
+        self.init = ([0.7, 735.0, 12.5, 125000.0, 200000.0])
+        self.bounds = np.array([[0.0, 1.0], [30.0, 1500.0], [0.0, 25.0], [0.0, 250000.0], [0.0, 400000.0]])
 
         self.n_state = len(self.statevec_names)
 
         # Load DISORT LUT
         # __file__ should live at isofit/isofit/surface/
         isofit_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        path_lut = os.path.join(isofit_path, "data", "iop", "DISORT_LUT_regular_grid_new.npz")
+        path_lut = os.path.join(isofit_path, "data", "iop", "DISORT_LUT_regular_grid_new_new.npz")
 
         with np.load(path_lut) as data:
             state = data['x']
@@ -60,7 +60,7 @@ class SnowSurface(MultiComponentSurface):
 
         data = hdrf.reshape(len(grid[0]), len(grid[1]), len(grid[2]), len(grid[3]), len(grid[4]), len(grid[5]),
                             len(grid[6]), hdrf.shape[1])
-        lut = ["r", "r", "r", "r", "r", "r", "r"]
+        lut = ["n", "n", "n", "n", "n", "n", "n"]
         self.VecInt = VectorInterpolator(grid_input=grid, data_input=data, lut_interp_types=lut, version="mlg")
 
         self.LS_Params = {
@@ -101,13 +101,16 @@ class SnowSurface(MultiComponentSurface):
         return resid
 
     def calc_rfl(self, x_surface, geom):
-        """Returns lambertian reflectance for a given state."""
+        """Returns hemispherical-directional reflectance (HDRF) for a given state."""
 
-        # calculate relative azimuth angle
+        # catch potential invalid cos values
+        if x_surface[0] > 1.0:
+            x_surface[0] = 1.0
+        # calculate all relevant angles
+        sza = np.rad2deg(np.arccos(x_surface[0]))
+        vza = geom.observer_zenith
         raa = self.calc_raa(saa=geom.solar_azimuth, vaa=geom.observer_azimuth)
-        # calculate effective solar zenith angle
-        sza_eff = np.rad2deg(np.arccos(geom.cos_i))
-        x_hat = np.array([sza_eff, geom.observer_zenith, raa, x_surface[0], x_surface[1], x_surface[2], x_surface[3]])
+        x_hat = np.array([sza, vza, raa, x_surface[1], x_surface[2], x_surface[3], x_surface[4]])
 
         rho_hat = self.VecInt(x_hat)
 
@@ -138,7 +141,7 @@ class SnowSurface(MultiComponentSurface):
         # first the reflectance at the current state vector
         rho_hat = self.calc_rfl(x_surface, geom)
 
-        # perturb each element of the RT state vector (finite difference)
+        # perturb each element of the surface state vector (finite difference)
         drfl_dsurface = []
         x_surfaces_perturb = x_surface + np.eye(len(x_surface)) * eps
 
@@ -161,5 +164,5 @@ class SnowSurface(MultiComponentSurface):
     def summarize(self, x_surface, geom):
         """Summary of state vector."""
 
-        return 'Grain Size: %5.3f, Liquid Water: %5.3f, Algae: %5.3f, Mineral Dust: %5.3f' % (
-            x_surface[0], x_surface[1], x_surface[2], x_surface[3])
+        return 'Eff. SZA: %5.3f, Grain Size: %5.3f, Liquid Water: %5.3f, Algae: %5.3f, Mineral Dust: %5.3f' % (
+            x_surface[0], x_surface[1], x_surface[2], x_surface[3], x_surface[4])
