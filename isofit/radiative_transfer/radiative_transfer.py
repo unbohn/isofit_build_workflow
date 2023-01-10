@@ -219,10 +219,7 @@ class RadiativeTransfer():
             I = (self.solar_irr) / np.pi 
             t_dir_down = r['t_down_dir']
             t_dif_down = r['t_down_dif']
-            if geom.cos_i is None:
-                cos_i = self.coszen
-            else:
-                cos_i = geom.cos_i 
+            cos_i = x_surface[0]
             t_total_up = (r['t_up_dif']+r['t_up_dir'])
             t_total_down = t_dir_down+t_dif_down
             s_alb = r['sphalb']
