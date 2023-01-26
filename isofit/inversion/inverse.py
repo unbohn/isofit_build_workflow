@@ -258,17 +258,20 @@ class Inversion:
         est_meas = self.fm.calc_meas(x, geom, rfl=None, Ls=None)
         est_meas_window = est_meas[self.winidx]
         meas_window = meas[self.winidx]
-        meas_resid = (est_meas_window - meas_window).dot(Seps_inv_sqrt)
+        # ToDo: we only return measurement residuals without instrument noise model nor priors to enhance accuracy of
+        #  radiance fits
+        meas_resid = (est_meas_window - meas_window)  #.dot(Seps_inv_sqrt)
 
         # Prior cost term
-        xa_free, Sa_free, Sa_free_inv, Sa_free_inv_sqrt = \
-            self.calc_conditional_prior(x_free, geom)
-        prior_resid = (x_free - xa_free).dot(Sa_free_inv_sqrt)
+        # xa_free, Sa_free, Sa_free_inv, Sa_free_inv_sqrt = \
+            # self.calc_conditional_prior(x_free, geom)
+        # prior_resid = (x_free - xa_free).dot(Sa_free_inv_sqrt)
 
         # Total cost
-        total_resid = np.concatenate((meas_resid, prior_resid))
+        # total_resid = np.concatenate((meas_resid, prior_resid))
 
-        return np.real(total_resid), x
+        # return np.real(total_resid), x
+        return np.real(meas_resid), x
 
     def invert(self, meas, geom):
         """Inverts a meaurement and returns a state vector.
@@ -332,7 +335,9 @@ class Inversion:
             # measurement noise from the instrument as well as variability due to
             # unknown variables. For speed, we will calculate it just once based
             # on the initial solution (a potential minor source of inaccuracy).
-            Seps_inv, Seps_inv_sqrt = self.calc_Seps(x, meas, geom)
+            # ToDo: we temporarily disable the instrument noise model to enhance accuracy of radiance fits
+            # Seps_inv, Seps_inv_sqrt = self.calc_Seps(x, meas, geom)
+            Seps_inv, Seps_inv_sqrt = None, None
 
             def jac(x_free):
                 """Short wrapper function for use with scipy opt"""
@@ -354,7 +359,8 @@ class Inversion:
 
             # Initialize and invert
             try:
-                xopt = least_squares(err, x0, jac=jac, **self.least_squares_params)
+                # ToDo: we use a simple 2-point jacobian instaed of the jac function
+                xopt = least_squares(err, x0, jac="2-point", **self.least_squares_params)
                 x_full_solution = self.full_statevector(xopt.x)
                 trajectory.append(x_full_solution)
                 solutions.append(trajectory)

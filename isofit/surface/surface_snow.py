@@ -40,7 +40,7 @@ class SnowSurface(MultiComponentSurface):
         self.statevec_names = (['Cos_i', 'Grain_size', 'Liquid_water', 'Algae', 'Mineral_dust'])
         self.scale = ([1e-6, 1.0, 1.0, 1.0, 1.0])
         self.init = ([0.7, 735.0, 12.5, 125000.0, 200000.0])
-        self.bounds = np.array([[0.0, 1.0], [30.0, 1500.0], [0.0, 25.0], [0.0, 250000.0], [0.0, 400000.0]])
+        self.bounds = np.array([[0.0, 1.0], [30.0, 1500.0], [0.0, 25.0], [0.0, 2500000.0], [0.0, 4000000.0]])
 
         self.n_state = len(self.statevec_names)
 
@@ -72,6 +72,7 @@ class SnowSurface(MultiComponentSurface):
     def xa(self, x_surface, geom):
         """Mean of prior distribution, calculated at state x."""
 
+        # ToDo: we currently don't use any priors in the inversion
         mu = self.init
         return mu
 
@@ -80,6 +81,7 @@ class SnowSurface(MultiComponentSurface):
         the covariance in a normalized space (normalizing by z) and then un-
         normalize the result for the calling function."""
 
+        # ToDo: we currently don't use any priors in the inversion
         f = (1000 * np.array(self.scale)) ** 2
         Cov = np.diag(f)
         return Cov
