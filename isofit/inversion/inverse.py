@@ -359,7 +359,7 @@ class Inversion:
 
             # Initialize and invert
             try:
-                # ToDo: we use a simple 2-point jacobian instaed of the jac function
+                # ToDo: we use a simple 2-point jacobian instead of the jac function
                 xopt = least_squares(err, x0, jac="2-point", **self.least_squares_params)
                 x_full_solution = self.full_statevector(xopt.x)
                 trajectory.append(x_full_solution)

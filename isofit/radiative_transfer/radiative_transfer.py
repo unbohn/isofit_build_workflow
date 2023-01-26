@@ -20,6 +20,7 @@
 
 import numpy as np
 import logging
+# import dill
 
 from ..core.common import eps
 from ..radiative_transfer.modtran import ModtranRT
@@ -163,11 +164,14 @@ class RadiativeTransfer():
             t_dif_up = r['t_up_dif']
             t_total_up = t_dir_up + t_dif_up
             s_alb = r['sphalb']
-            cos_i = x_surface[0]
+            cos_i = geom.cos_i
             # topographic flux (topoflux) effect corrected
             ret = L_atm + \
                 (I*cos_i/(1.0-s_alb*rfl)*t_dir_down + \
                     I*self.coszen/(1.0-s_alb*rfl)*t_dif_down) * rfl * t_total_up
+
+            # with open("/Users/bohn/Desktop/test.dill", "wb") as fl:
+                # dill.dump([I, L_atm, t_dir_down, t_dir_up, t_dif_down, t_dif_up, t_total_up, s_alb, cos_i, self.coszen], fl)
 
         else:
             L_down_transmitted = self.get_L_down_transmitted(x_RT, geom)
@@ -221,7 +225,7 @@ class RadiativeTransfer():
             I = (self.solar_irr) / np.pi 
             t_dir_down = r['t_down_dir']
             t_dif_down = r['t_down_dif']
-            cos_i = x_surface[0]
+            cos_i = geom.cos_i
             t_total_up = (r['t_up_dif']+r['t_up_dir'])
             t_total_down = t_dir_down+t_dif_down
             s_alb = r['sphalb']
