@@ -1,10 +1,254 @@
 Best Practices
 ==============
 
-ISOFIT is highly configurable.  This provides a great deal of design flexibility for analysts to build their own custom retrieval algorithms for specific investigations.  Scientists can construct custom instrument models to handle new sensors, or define new observation uncertainties to account for model discrepancy errors.  They can refine or constrain the prior distribution based on background knowledge of the state vector.  This flexibility can be powerful, but it can also be daunting for the beginner.  Consequently, we have developed recommendations for best practices that are likely to provide good results over a wide range of conditions.
+ISOFIT is highly configurable. This provides a great deal of design flexibility for analysts to build their own custom
+retrieval algorithms for specific investigations. Scientists can construct custom instrument models to handle new
+sensors, or define new observation uncertainties to account for model discrepancy errors. They can refine or constrain
+the prior distribution based on background knowledge of the state vector. This flexibility can be powerful, but it can
+also be daunting for the beginner. Consequently, we have developed a few application examples that provide a detailed
+overview about some standard configuration settings and are likely to produce good results over a wide range of
+conditions.
 
-Surface Models
---------------
+Starting with version 3.0.0, ISOFIT comes with a new macro configuration dictionary that allows the user to set all
+required and optional processing options within one single file. Whether relying on default settings or specifying
+advanced configurations, the dictionary provides a great deal of both flexibility and simplicity. All other needed
+model and configuration settings, such as the surface model and radiative transfer options, are then created on
+runtime based on the parameters provided in the macro dictionary.
+
+In the following, we will take a detailed look at the macro config and provide different application examples
+incorporating both different instruments and surface types.
+
+
+The macro config file
+---------------------
+
+The macro config file consists of a specific structure of high-level options and more specific processing
+configurations. Besides general options and inversion parameters, it also includes surface type specific inversion
+settings as well as the design of the surface model. A template for the macro config file, called
+"multisurface_oe_template.json", can be found at the main directory of the ISOFIT package. This template comes with all
+the default settings that are needed to successfully run ISOFIT. In principle, the user just needs to adjust the sensor
+name and a few optional filepaths. Now, we will walk you through the different configuration blocks of the macro config:
+
+.. code-block:: JSON
+
+    "general_options": {
+            "sensor": "emit",
+            "n_cores": null,
+            "segmentation_size": 40,
+            "num_neighbors": 15,
+            "chunksize": 256,
+            "n_pca": 5,
+            "copy_input_files": false,
+            "presolve_wv": true,
+            "empirical_line": false,
+            "analytical_line": true,
+            "debug_mode": false,
+            "ray_temp_dir": "/tmp/ray"
+        }
+
+.. list-table:: General options
+   :widths: 5 25
+   :header-rows: 1
+
+   * - Key
+     - Value
+   * - sensor
+     - Sensor name, will be used to determine noise and datetime settings. Choices are:
+       [ang, avcl, emit, prism, neon, hyp]
+   * - n_cores
+     - Number of cores to run ISOFIT with. Substantial parallelism is available, and full runs will be very slow in
+       serial. Suggested to max this out on the available system, which can be done by setting n_cores = null.
+       Default 1.
+   * - segmentation_size
+     - Size of segments to construct for empirical or analytical line (if used). Default 40.
+   * - num_neighbors
+     - Number of neighbors for empirical or analytical line extrapolation. If not given, this number is calculated
+       based on the segmentation size. Default 15.
+   * - chunksize
+     -
+   * - n_pca
+     -
+   * - copy_input_files
+     -
+   * - presolve_wv
+     -
+   * - empirical_line
+     -
+   * - analytical_line
+     -
+   * - debug_mode
+     -
+   * - ray_temp_dir
+     -
+
+.. code-block:: JSON
+
+    "general_inversion_parameters": {
+                "filepaths": {
+                    "model_discrepancy_path": null,
+                    "aerosol_climatology_path": null,
+                    "channelized_uncertainty_path": null,
+                    "surface_path": null,
+                    "rdn_factors_path": null,
+                    "modtran_path": null,
+                    "lut_config_path": null,
+                    "emulator_base": "/Users/bohn/Desktop/sRTMnet_v100/sRTMnet_v100"
+                },
+                "options": {
+                    "multiple_restarts": false,
+                    "multipart_transmittance": false,
+                    "topography_model": false,
+                    "eps": 0.02,
+                    "uncorrelated_radiometric_uncertainty": 0.01,
+                    "inversion_windows": [[380.0, 1325.0], [1435, 1770.0], [1965.0, 2500.0]],
+                    "statevector_elements": ["H2OSTR", "AOT550", "GNDALT"],
+                    "surface_category": "multicomponent_surface"
+                },
+                "radiative_transfer_parameters": {
+                    "spectral_DV": 5,
+                    "spectral_FWHM": 5,
+                    "spectral_BMNAME": "05_2013",
+                    "atmosphere_type": "ATM_MIDLAT_SUMMER",
+                    "H2OSTR": {
+                        "lut_spacing": 0.25,
+                        "lut_spacing_min": 0.03,
+                        "default_range": [0.05, 5.0],
+                        "min": 0.05
+                    },
+                    "AOT550": {
+                        "lut_spacing": 0,
+                        "lut_spacing_min": 0,
+                        "default_range": [0.001, 1]
+                    },
+                    "GNDALT": {
+                        "lut_spacing": 0.25,
+                        "lut_spacing_min": 0.2,
+                        "expand_range": 2
+                    }
+                }
+            }
+
+.. code-block:: JSON
+
+    "type_specific_inversion_parameters": {
+                "cloud": {
+                    "toa_threshold_wavelengths": [450,1250,1650],
+                    "toa_threshold_values": [0.31, 0.51, 0.22],
+                    "toa_threshold_comparisons": ["gt","gt","gt"],
+                    "statevector_elements": ["GNDALT"],
+                    "GNDALT": {
+                        "lut_spacing": 0.25,
+                        "lut_spacing_min": 0.2,
+                        "expand_range": 2
+                    }
+                },
+                "water": {
+                    "toa_threshold_wavelengths": [1000, 1380],
+                    "toa_threshold_values": [0.05, 0.1],
+                    "toa_threshold_comparisons": ["lt"],
+                    "surface_category":  "glint_surface"
+                }
+            }
+
+.. code-block:: JSON
+
+    "surface": {
+            "output_model_file": null,
+            "wavelength_file": null,
+            "normalize": "Euclidean",
+            "reference_windows": [[400, 1300], [1450, 1700], [2100, 2450]],
+            "sources":
+                [
+                    {
+                        "input_spectrum_files":
+                            [
+                                "surface_model_ucsb"
+                            ],
+                        "n_components": 8,
+                        "windows": [
+                            {
+                                "interval": [300, 400],
+                                "regularizer": 1e-4,
+                                "correlation": "EM"
+                            },
+                            {
+                                "interval": [400, 1300],
+                                "regularizer": 1e-6,
+                                "correlation": "EM"
+                            },
+                            {
+                                "interval": [1300, 1450],
+                                "regularizer": 1e-4,
+                                "correlation": "EM"
+                            },
+                            {
+                                "interval": [1450, 1700],
+                                "regularizer": 1e-6,
+                                "correlation": "EM"
+                            },
+                            {
+                                "interval": [1700, 2100],
+                                "regularizer": 1e-4,
+                                "correlation": "EM"
+                            },
+                            {
+                                "interval": [2100, 2450],
+                                "regularizer": 1e-6,
+                                "correlation": "EM"
+                            },
+                            {
+                                "interval": [2450, 2550],
+                                "regularizer": 1e-4,
+                                "correlation": "EM"
+                            }
+                                    ]
+                    },
+                    {
+                        "input_spectrum_files":
+                            [
+                                "ocean_spectra_rev2"
+                            ],
+                        "n_components": 8,
+                        "windows": [
+                            {
+                                "interval": [300, 400],
+                                "regularizer": 1e-4,
+                                "correlation": "decorrelated"
+                            },
+                            {
+                                "interval": [400, 1300],
+                                "regularizer": 1e-6,
+                                "correlation": "EM"
+                            },
+                            {
+                                "interval": [1300, 1450],
+                                "regularizer": 1e-4,
+                                "correlation": "decorrelated"
+                            },
+                            {
+                                "interval": [1450, 1700],
+                                "regularizer": 1e-6,
+                                "correlation": "decorrelated"
+                            },
+                            {
+                                "interval": [1700, 2100],
+                                "regularizer": 1e-4,
+                                "correlation": "decorrelated"
+                            },
+                            {
+                                "interval": [2100, 2450],
+                                "regularizer": 1e-6,
+                                "correlation": "decorrelated"
+                            },
+                            {
+                                "interval": [2450, 2550],
+                                "regularizer": 1e-4,
+                                "correlation": "decorrelated"
+                            }
+                                    ]
+                    }
+                ]
+        }
 
 The multicomponent surface model is most universal and forgiving.  We recommend constructing Gaussian PDFs from diverse libraries of terrestrial and aquatic spectra, with correlations only in the key water absorption features at 940 and 1140 nm.  Use reference wavelengths for normalization and distance calculations that exclude the deep water absorption features at 1440 and 1880 nm.  An example configuration file formed from libraries in our distribution, for the wavelengths from 380-2500 nm, might be:
 
