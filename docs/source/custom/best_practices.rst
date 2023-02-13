@@ -39,9 +39,9 @@ name and a few optional filepaths. Now, we will walk you through the different c
             "chunksize": 256,
             "n_pca": 5,
             "copy_input_files": false,
-            "presolve_wv": true,
+            "presolve_wv": false,
             "empirical_line": false,
-            "analytical_line": true,
+            "analytical_line": false,
             "debug_mode": false,
             "ray_temp_dir": "/tmp/ray"
         }
@@ -58,28 +58,36 @@ name and a few optional filepaths. Now, we will walk you through the different c
    * - n_cores
      - Number of cores to run ISOFIT with. Substantial parallelism is available, and full runs will be very slow in
        serial. Suggested to max this out on the available system, which can be done by setting n_cores = null.
-       Default 1.
+       Default: 1.
    * - segmentation_size
-     - Size of segments to construct for empirical or analytical line (if used). Default 40.
+     - Size of segments to construct for empirical or analytical line (if used). Default: 40.
    * - num_neighbors
      - Number of neighbors for empirical or analytical line extrapolation. If not given, this number is calculated
-       based on the segmentation size. Default 15.
+       based on the segmentation size. Default: 15.
    * - chunksize
-     -
+     - Size of image chunks to be processed separately. Default: 256.
    * - n_pca
-     -
+     - Number of principle components to be used for image segmentation. Default: 5.
    * - copy_input_files
-     -
+     - If set to true, copy input_radiance, input_loc, and input_obs locally into the working_directory. Default: false.
    * - presolve_wv
-     -
+     - If set to true, use a presolve mode to estimate the available atmospheric water vapor range. Runs a preliminary
+       inversion over the image with a 1-D LUT of water vapor, and uses the resulting range (slightly expanded) to
+       bound the full LUT. Advisable to only use with small images/image subsets or in concert with the empirical or
+       analytical line setting, otherwise, a significant speed penalty will be incurred. Default: false.
    * - empirical_line
-     -
+     - If set to true, use an empirical line interpolation to run full inversions over only a subset of pixels,
+       determined using a SLIC superpixel segmentation, and use a KDTREE of local solutions to interpolate
+       radiance->reflectance. Generally a good option if not trying to analyze the atmospheric state at fine scale
+       spatial resolution. Default: false.
    * - analytical_line
-     -
+     - If set to true, perform an analytical inversion of the conditional MAP estimate for a fixed atmosphere. The
+       latter is calculated by retrieving the atmospheric state for each superpixel and then interpolating to per-pixel
+       level. Based on the "inner loop" from Susiluoto ate al. (2023). Default: false.
    * - debug_mode
-     -
+     - If set to true, run ISOFIT with single core processing, which facilitates debugging. Default: false.
    * - ray_temp_dir
-     -
+     - Location of temporary directory for ray parallelization engine. Default: '/tmp/ray'.
 
 .. code-block:: JSON
 
@@ -127,6 +135,58 @@ name and a few optional filepaths. Now, we will walk you through the different c
                     }
                 }
             }
+
+.. list-table:: General inversion parameters
+   :widths: 5 25
+   :header-rows: 1
+
+   * - Key
+     - Value
+   * - model_discrepancy_path
+     - Specify wavelength-dependent forward model discrepancy, if desired. Default: null.
+   * - aerosol_climatology_path
+     - Specific aerosol climatology information to use in MODTRAN, if desired. Default: null.
+   * - channelized_uncertainty_path
+     - Specify channelized radiometric instrument uncertainty, if desired. Default: null.
+   * - surface_path
+     - Specify costume, pre-built surface model, if desired. If not given, ISOFIT builds the surface model on runtime
+       using the settings of the 'surface' block in the macro config. Default: null.
+   * - rdn_factors_path
+     - Specify wavelength-dependent radiometric correction factors, if desired. Default: null.
+   * - modtran_path
+     - Specify location of MODTRAN software. If not given, ISOFIT uses the MODTRAN_DIR environment variable to locate
+       the executable file. Default: null.
+   * - lut_config_path
+     - Specify a look up table configuration file, which will override defaults chocies that are set up on runtime.
+       Default: null.
+   * - emulator_base
+     - Specify location of emulator base path. Point this at the model folder (or h5 file) of sRTMnet to use the
+       emulator instead of MODTRAN (i.e., your_path/sRTMnet_v100/sRTMnet_v100, see macro config template). If not given,
+       ISOFIT tries to use MODTRAN for radiative transfer simulations.
+   * - multiple_restarts
+     - If set to true, use multiple initializations for calculation of atmospheric state first guess. Default: false.
+   * - multipart_transmittance
+     - If set to true, ISOFIT runs MODTRAN with 3 different surface reflectance levels in order to separate down- and
+       upward transmittance into direct and diffuse parts. Default: false.
+   * - topography_model
+     - If set to true, apply the topoflux model that accounts for surface slope and aspect by separately scaling direct
+       and diffuse downwelling transmittance (Carmon et al. 2022). Only applicable when multipart_transmittance is set
+       to true. Default: false.
+   * - eps
+     - Delta value for perturbing state vector elements for calculating Jacobian. Default: 0.02.
+   * - uncorrelated_radiometric_uncertainty
+     - Uncorrelated radiometric uncertainty to be added to Rodgers' model error formalism. Default: 0.01.
+   * - inversion_windows
+     - Spectral ranges to be included in the inversion. Less weight, i.e., higher uncertainties will be put on
+       wavelengths outside inversion windows.
+   * - statevector_elements
+     - Elements of the atmospheric state vector. It is recommended to have at least water vapor and aod as free
+       parameters. Default: ["H2OSTR", "AOT550", "GNDALT"].
+   * - surface_category
+     - Define the surface model to be used. Possible choices are ["multicomponent_surface", "glint_surface",
+       "thermal_surface"]. Default: "multicomponent_surface".
+   * - spectral_DV
+     -
 
 .. code-block:: JSON
 
