@@ -1,4 +1,4 @@
-Best Practices
+Configuration Settings
 ==============
 
 ISOFIT is highly configurable. This provides a great deal of design flexibility for analysts to build their own custom

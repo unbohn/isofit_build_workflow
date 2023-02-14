@@ -6,13 +6,12 @@
 
    custom/about.rst
    custom/installation.rst
+   custom/config_settings.rst
    custom/docker.rst
 
 .. toctree::
-   :Caption: Examples
+   :Caption: Tutorials
    :maxdepth: 2
-
-   custom/best_practices.rst
 
 .. toctree::
    :Caption: The Code
