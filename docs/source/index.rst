@@ -13,6 +13,8 @@
    :Caption: Tutorials
    :maxdepth: 2
 
+   custom/examples.rst
+
 .. toctree::
    :Caption: The Code
    :maxdepth: 4
