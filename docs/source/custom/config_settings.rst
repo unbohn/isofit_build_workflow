@@ -1,5 +1,5 @@
 Configuration Settings
-==============
+======================
 
 ISOFIT is highly configurable. This provides a great deal of design flexibility for analysts to build their own custom
 retrieval algorithms for specific investigations. Scientists can construct custom instrument models to handle new
