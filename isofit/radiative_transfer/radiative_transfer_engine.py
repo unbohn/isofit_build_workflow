@@ -23,6 +23,7 @@ import logging
 import os
 import time
 from collections import OrderedDict
+from collections.abc import Callable
 
 import numpy as np
 import ray
@@ -371,8 +372,8 @@ class RadiativeTransferEngine:
 @ray.remote
 def stream_simulation(
     point: np.array,
-    simmulation_call: function,
-    reader: function,
+    simmulation_call: Callable,
+    reader: Callable,
     save_file: str,
     max_buffer_time: float = 0.5,
 ):
