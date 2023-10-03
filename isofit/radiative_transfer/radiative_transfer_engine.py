@@ -52,10 +52,13 @@ class RadiativeTransferEngine:
         self.overwrite_interpolator = overwrite_interpolator
         self.cache_size = cache_size
 
-        if os.path.isfile(self.prebuilt_lut_file) is False and lut_grid is None:
-            raise AttributeError(
-                "Must provide either a prebuilt LUT file or a LUT grid"
-            )
+        self.prebuilt_lut_file = engine_config.engine_lut_file
+
+        if lut_grid is None:
+            try:
+                os.path.isfile(self.prebuilt_lut_file) is True
+            except (AttributeError, TypeError) as err:
+                raise err("Must provide either a prebuilt LUT file or a LUT grid.")
 
         self.emission_mode = engine_config.emission_mode
         self.engine_base_dir = engine_config.engine_base_dir
@@ -73,8 +76,6 @@ class RadiativeTransferEngine:
         self.geometry_lut_indices = None
         self.geometry_lut_names = None
         self.x_RT_lut_indices = None
-
-        self.prebuilt_lut_file = engine_config.engine_lut_file
 
         # Read prebuilt LUT from HDF5 if existing
         if self.prebuilt_lut_file and os.path.isfile(self.prebuilt_lut_file):
