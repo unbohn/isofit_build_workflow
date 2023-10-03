@@ -10,7 +10,7 @@ import pandas as pd
 import xarray as xr
 
 from isofit import ray
-from isofit.utils.luts.channel_read import load_chn_single
+from isofit.radiative_transfer.luts.channel_read import load_chn_single
 
 
 @ray.remote

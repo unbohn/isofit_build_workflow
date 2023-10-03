@@ -131,15 +131,18 @@ class RadiativeTransferEngine:
 
         # If prebuilt LUT is available, read a few important LUT parameters and functions
         if self.lut:
-            # TODO: ensure consistency with group keys in LUT file
-            self.solar_irr = self.lut["MISCELLANEOUS"]["sols"]
             # We use a sorted dictionary here so that filenames for lookup
             # table (LUT) grid points are always constructed the same way (with
             # consistent dimension ordering). Every state vector element has
             # a lookup table dimension, but some lookup table dimensions
             # (like geometry parameters) may not be in the state vector.
             # TODO: ensure consistency with group keys in LUT file
-            full_lut_grid = self.lut["sample_space"]
+            self.solar_irr = self.lut["Sols"]
+            full_lut_grid = {}
+            for dim, sample in zip(
+                self.lut["Dimensions"], range(self.lut["SampleSpace"].shape[1])
+            ):
+                full_lut_grid[dim] = list(np.unique(self.lut["SampleSpace"][:, sample]))
         else:
             self.solar_irr = None
             full_lut_grid = lut_grid
