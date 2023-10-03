@@ -61,7 +61,7 @@ def cli(ctx, version, path):
 
 def get_isofit_path() -> str:
     """Get location of isofit installation"""
-    isofit_path = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+    isofit_path = os.path.dirname(os.path.dirname(__file__))
     return isofit_path
 
 

@@ -113,7 +113,9 @@ class RadiativeTransferEngine:
             wavelength_file = engine_config.wavelength_file
         else:
             wavelength_file = instrument_wavelength_file
+        import pdb
 
+        pdb.set_trace()
         self.wl, self.fwhm = common.load_wavelen(wavelength_file)
 
         if engine_config.wavelength_range is not None:
