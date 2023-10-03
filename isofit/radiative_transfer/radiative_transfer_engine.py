@@ -113,9 +113,7 @@ class RadiativeTransferEngine:
             wavelength_file = engine_config.wavelength_file
         else:
             wavelength_file = instrument_wavelength_file
-        import pdb
 
-        pdb.set_trace()
         self.wl, self.fwhm = common.load_wavelen(wavelength_file)
 
         if engine_config.wavelength_range is not None:
@@ -193,10 +191,11 @@ class RadiativeTransferEngine:
         self.last_point_looked_up = np.zeros(self.n_point)
         self.last_point_lookup_values = np.zeros(self.n_point)
 
-        self.interpolator_disk_paths = [
-            engine_config.interpolator_base_path + "_" + rtq + ".pkl"
-            for rtq in self.lut_names
-        ]
+        if engine_config.interpolator_base_path:
+            self.interpolator_disk_paths = [
+                engine_config.interpolator_base_path + "_" + rtq + ".pkl"
+                for rtq in self.lut_names
+            ]
 
     def make_simulation_call(self, point: np.array, template_only: bool = False):
         """Write template(s) and run simulation.
