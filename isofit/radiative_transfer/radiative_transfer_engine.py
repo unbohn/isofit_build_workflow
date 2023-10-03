@@ -33,7 +33,7 @@ from isofit.configs.sections.radiative_transfer_config import (
 )
 from isofit.core import common
 from isofit.core.geometry import Geometry
-from isofit.utils.luts import readHDF5
+from isofit.radiative_transfer.luts import readHDF5
 
 
 class RadiativeTransferEngine:
