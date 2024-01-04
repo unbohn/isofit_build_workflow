@@ -217,7 +217,7 @@ def apply_oe(args):
         valid,
         to_sensor_zenith_lut_grid,
         to_sun_zenith_lut_grid,
-        relative_azimuth_lut_grid
+        relative_azimuth_lut_grid,
     ) = get_metadata_from_obs(paths.obs_working_path, lut_params)
 
     # overwrite the time in case original obs has an error in that band
@@ -850,7 +850,7 @@ class LUTConfig:
 
         # Units of degrees
         self.relative_azimuth_spacing = 60
-        self.relative_azimuth_spacing_min = 60
+        self.relative_azimuth_spacing_min = 25
 
         # Units of AOD
         self.aerosol_0_spacing = 0
@@ -1266,10 +1266,16 @@ def get_metadata_from_obs(
     mean_path_km = np.mean(path_km[valid])
     del path_km
 
-    mean_to_sensor_azimuth = (lut_params.get_angular_grid(to_sensor_azimuth[valid], -1, 0) % 360)
-    mean_to_sensor_zenith = 180 - lut_params.get_angular_grid(to_sensor_zenith[valid], -1, 0)
+    mean_to_sensor_azimuth = (
+        lut_params.get_angular_grid(to_sensor_azimuth[valid], -1, 0) % 360
+    )
+    mean_to_sensor_zenith = 180 - lut_params.get_angular_grid(
+        to_sensor_zenith[valid], -1, 0
+    )
     mean_to_sun_zenith = lut_params.get_angular_grid(to_sun_zenith[valid], -1, 0)
-    mean_relative_azimuth = (lut_params.get_angular_grid(relative_azimuth[valid], -1, 0) % 360)
+    mean_relative_azimuth = (
+        lut_params.get_angular_grid(relative_azimuth[valid], -1, 0) % 360
+    )
 
     # geom_margin = EPS * 2.0
     to_sensor_zenith_lut_grid = lut_params.get_angular_grid(
@@ -1340,7 +1346,7 @@ def get_metadata_from_obs(
         valid,
         to_sensor_zenith_lut_grid,
         to_sun_zenith_lut_grid,
-        relative_azimuth_lut_grid
+        relative_azimuth_lut_grid,
     )
 
 
@@ -1376,7 +1382,7 @@ def get_metadata_from_loc(
     )
     for line in range(loc_dataset.RasterYSize):
         # Read line in
-        loc_data[:, line: line + 1, :] = loc_dataset.ReadAsArray(
+        loc_data[:, line : line + 1, :] = loc_dataset.ReadAsArray(
             0, line, loc_dataset.RasterXSize, 1
         )
 
