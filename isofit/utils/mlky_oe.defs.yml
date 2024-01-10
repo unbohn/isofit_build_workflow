@@ -1,0 +1,179 @@
+.input_radiance:
+  dtype: str
+  sdesc: ...
+  required: True
+  checks:
+    - isfile
+.input_loc:
+  dtype: str
+  sdesc: ...
+  required: True
+  checks:
+    - isfile
+.input_obs:
+  dtype: str
+  sdesc: ...
+  required: True
+  checks:
+    - isfile
+.working_directory:
+  dtype: str
+  sdesc: ...
+  required: True
+  checks:
+    - isdir
+.sensor:
+  dtype: str
+  sdesc: ...
+  required: True
+  checks:
+    - oneof:
+        options:
+          - ang
+          - avcl
+          - neon
+          - prism
+          - emit
+          - hyp
+          - prisma
+          - NA-*
+        regex: True
+.presolve:
+  dtype: dict
+  .enabled:
+    dtype: bool
+    sdesc: Enables/disables presolve functionality
+    default: False
+.log:
+  dtype: dict
+  sdesc: Controls the logger
+  .file:
+    dtype: str
+    sdesc: File to write log outputs to. Omit to not write to file
+    default: mlky_oe.log
+  .mode:
+    dtype: str
+    sdesc: "File write mode, ie: `write` = overwite the file, `append` = append to existing"
+    default: write
+    checks:
+      - oneof:
+        - write
+        - append
+  .level:
+    dtype: str
+    sdesc: Logger level. This is the level that will write to file if enabled
+    default: DEBUG
+    checks:
+      - oneof:
+        - DEBUG
+        - INFO
+        - WARNING
+        - ERROR
+        - EXCEPTION
+  .terminal:
+    dtype: str
+    sdesc: The terminal level to log, ie. logger level to write to terminal. This can be different than the file level
+    default: ${.log.level}
+    checks:
+      - oneof:
+        - DEBUG
+        - INFO
+        - WARNING
+        - ERROR
+        - EXCEPTION
+.copy_input_files:
+  dtype: bool
+  sdesc: Copies the input files to the output directory
+  default: False
+.modtran_path:
+  dtype: str
+  sdesc: ...
+  checks:
+    - isdir
+.wavelength_path:
+  dtype: str
+  sdesc: ...
+  checks:
+    - isdir
+.surface_category:
+  dtype: str
+  sdesc: ...
+  default: multicomponent_surface
+.aerosol_climatology_path:
+  dtype: str
+  sdesc: ...
+  checks:
+    - isfile
+.rdn_factors_path:
+  dtype: str
+  sdesc: ...
+  checks:
+    - isfile
+.surface_path:
+  dtype: str
+  sdesc: ...
+  checks:
+    - isfile
+.atmosphere_type:
+  dtype: str
+  sdesc: ...
+  default: ATM_MIDLAT_SUMMER
+.channelized_uncertainty_path:
+  dtype: str
+  sdesc: ...
+  checks:
+    - isfile
+.model_discrepancy_path:
+  dtype: str
+  sdesc: ...
+  checks:
+    - isfile
+.lut_config_file:
+  dtype: str
+  sdesc: ...
+  checks:
+    - isfile
+.multiple_restarts:
+  dtype: bool
+  sdesc: ...
+  default: False
+.n_cores:
+  dtype: int
+  sdesc: Number of cores to use. Defaults to all cores
+  default: ${!os.cpu_count}
+  checks:
+    - compare:
+        gte: 1
+.empirical_line:
+  dtype: bool
+  sdesc: ...
+  default: False
+.analytical_line:
+  dtype: bool
+  sdesc: ...
+  default: False
+.ray_temp_dir:
+  dtype: str
+  sdesc: Ray temporary output directory
+  default: /tmp/ray
+.emulator_base:
+  dtype: str
+  sdesc: ...
+  checks:
+    - isdir
+.segmentation_size:
+  dtype: int
+  sdesc: ...
+  default: 40
+.pressure_elevation:
+  dtype: bool
+  sdesc: ...
+  default: False
+.atm_sigma:
+  dtype: list
+  sdesc: ...
+  default:
+    - 2.
+.num_neighbors:
+  dtype: list
+  sdesc: ...
