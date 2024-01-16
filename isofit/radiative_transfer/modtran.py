@@ -236,6 +236,10 @@ class ModtranRT(RadiativeTransferEngine):
         )
         self.template = json_load_ascii(self.engine_config.template_file)["MODTRAN"]
 
+        # Regenerate MODTRAN input wavelength file
+        if not os.path.exists(self.filtpath):
+            self.wl2flt(self.wl, self.fwhm, self.filtpath)
+
         # Insert aerosol templates, if specified
         if self.engine_config.aerosol_model_file is not None:
             self.template[0]["MODTRANINPUT"]["AEROSOLS"] = json_load_ascii(
@@ -336,7 +340,9 @@ class ModtranRT(RadiativeTransferEngine):
             self.engine_base_dir, "bin", xdir[platform], "mod6c_cons " + infilename
         )
 
-        call = subprocess.run(cmd, shell=True, timeout=timeout, cwd=self.sim_path, capture_output=True)
+        call = subprocess.run(
+            cmd, shell=True, timeout=timeout, cwd=self.sim_path, capture_output=True
+        )
         if call.stdout:
             Logger.error(call.stdout.decode())
 
