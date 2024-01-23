@@ -210,27 +210,194 @@ def sel(ds, dim, lt=None, lte=None, gt=None, gte=None):
     return ds
 
 
-def load(file: str, lut_names: list = [], subset: dict = {}) -> xr.Dataset:
+def subset(ds: xr.Dataset, dim: str, strat) -> xr.Dataset:
+    """
+    Subsets a dataset object along a specific dimension in a few supported ways.
+
+    Parameters
+    ----------
+    ds: xr.Dataset
+        Dataset to operate on
+    dim: str
+        Name of the dimension to subset
+    strat: float, int, list, dict, str, None
+        Strategy to subset the given dimension with
+
+    Returns
+    -------
+    xr.Dataset
+        New subset of the input dataset
+    """
+    if isinstance(strat, (float, int, list)):
+        return ds.sel({dim: strat})
+
+    elif isinstance(strat, str):
+        return getattr(ds, strat)(dim)
+
+    elif isinstance(strat, type(None)):
+        return ds  # Take dimension as-is
+
+    elif isinstance(strat, dict):
+        func = strat.get("function")
+        if func == "example on how to implement a custom subsetting function":
+            return useThatFunc(ds, dim, **strat)
+
+        return sel(ds, dim, **strat)
+
+
+def load(file: str, subset: dict = {}) -> xr.Dataset:
     """
     Loads a LUT NetCDF
     Assumes to be a regular grid at this time (auto creates the point dim)
+
+    Parameters
+    ----------
+    file: str
+        LUT file to load
+    subset: dict, default={}
+        Subset each dimension with a given strategy. Each dimension in the LUT file
+        must be specified.
+        See examples for more information
+
+    Examples
+    --------
+    >>> # Create a test file for the examples to load
+    >>> file = 'subsetting_example.nc'
+    >>> lut_dims = {
+    ...     'AOT550': [0.001, 0.1009, 0.2008, 0.3007, 0.4006, 0.5005, 0.6004, 0.7003, 0.8002, 0.9001, 1.],
+    ...     'H2OSTR': [0.2231, 0.4637, 0.7042, 0.9447, 1.1853, 1.4258, 1.6664, 1.9069, 2.1474, 2.388, 2.6285, 2.869, 3.1096, 3.3501],
+    ...     'observer_zenith': [170.1099, 172.7845],
+    ...     'surface_elevation_km': [0., 0.2361, 0.4721, 0.7082, 0.9442, 1.1803, 1.4164, 1.6524, 1.8885, 2.1245, 2.3606, 2.5966, 2.8327, 3.0688, 3.3048, 3.5409, 3.7769, 4.013],
+    ...     'wl': range(285)
+    ... }
+    >>> ds = xr.Dataset(coords=lut_dims)
+    >>> ds.to_netcdf(file)
+
+    >>> # Subset: Exact values along the dimension
+    >>> subset = {
+    ...     'AOT550': None,
+    ...     'H2OSTR': [1.1853, 2.869],
+    ...     'observer_zenith': None,
+    ...     'surface_elevation_km': None,
+    ... }
+    >>> load(file, subset).dims
+    Frozen({'wl': 285, 'point': 792})
+    >>> load(file, subset).unstack().dims
+    Frozen({'AOT550': 11, 'H2OSTR': 2, 'observer_zenith': 2, 'surface_elevation_km': 18, 'wl': 285})
+
+    >>> # Subset: 1.1853 < H2OSTR < 2.869
+    >>> subset = {
+    ...     'AOT550': None,
+    ...     'H2OSTR': {
+    ...         'gt': 1.1853,
+    ...         'lt': 2.869
+    ...     },
+    ...     'observer_zenith': None,
+    ...     'surface_elevation_km': None,
+    ... }
+    >>> load(file, subset).dims
+    Frozen({'wl': 285, 'point': 2376})
+    >>> load(file, subset).unstack().dims
+    Frozen({'AOT550': 11, 'H2OSTR': 6, 'observer_zenith': 2, 'surface_elevation_km': 18, 'wl': 285})
+
+    >>> # Subset: 1.1853 <= H2OSTR <= 2.869
+    >>> subset = {
+    ...     'AOT550': None,
+    ...     'H2OSTR': {
+    ...         'gte': 1.1853,
+    ...         'lte': 2.869
+    ...     },
+    ...     'observer_zenith': None,
+    ...     'surface_elevation_km': None
+    ... }
+    >>> load(file, subset).dims
+    Frozen({'wl': 285, 'point': 3168})
+    >>> load(file, subset).unstack().dims
+    Frozen({'AOT550': 11, 'H2OSTR': 8, 'observer_zenith': 2, 'surface_elevation_km': 18, 'wl': 285})
+
+    >>> # Subset: Exact value, squeeze dimension
+    >>> subset = {
+    ...     'AOT550': None,
+    ...     'H2OSTR': 2.869,
+    ...     'observer_zenith': None,
+    ...     'surface_elevation_km': None
+    ... }
+    >>> load(file, subset).dims
+    Frozen({'wl': 285, 'point': 396})
+    >>> load(file, subset).unstack().dims
+    Frozen({'AOT550': 11, 'observer_zenith': 2, 'surface_elevation_km': 18, 'wl': 285})
+
+    >>> # Subset: Using mean, squeeze dimension
+    >>> subset = {
+    ...     'AOT550': None,
+    ...     'H2OSTR': 'mean',
+    ...     'observer_zenith': None,
+    ...     'surface_elevation_km': None
+    ... }
+    >>> load(file, subset).dims
+    Frozen({'wl': 285, 'point': 396})
+
+    >>> # Subset: Using max, squeeze dimension
+    >>> subset = {
+    ...     'AOT550': None,
+    ...     'H2OSTR': 'max',
+    ...     'observer_zenith': None,
+    ...     'surface_elevation_km': None
+    ... }
+    >>> load(file, subset).dims
+    Frozen({'wl': 285, 'point': 396})
+    >>> load(file, subset).unstack().dims
+    Frozen({'AOT550': 11, 'observer_zenith': 2, 'surface_elevation_km': 18, 'wl': 285})
+
+    >>> # Multiple subsets
+    >>> subset = {
+    ...     'AOT550': [0.2008, 0.4006, 0.6004],
+    ...     'H2OSTR': {
+    ...         'gte': 1.1853,
+    ...         'lte': 2.869
+    ...     },
+    ...     'observer_zenith': None,
+    ...     'surface_elevation_km': None
+    ... }
+    >>> load(file, subset).dims
+    Frozen({'wl': 285, 'point': 864})
+    >>> load(file, subset).unstack().dims
+    Frozen({'AOT550': 3, 'H2OSTR': 8, 'observer_zenith': 2, 'surface_elevation_km': 18, 'wl': 285})
+
+    >>> # Multiple subsets
+    >>> subset = {
+    ...     'AOT550': [0.2008, 0.4006, 0.6004],
+    ...     'H2OSTR': {
+    ...         'gte': 1.1853,
+    ...         'lte': 2.869
+    ...     },
+    ...     'observer_zenith': 172.7845,
+    ...     'surface_elevation_km': 'mean'
+    ... }
+    >>> load(file, subset).dims
+    Frozen({'wl': 285, 'point': 24})
+    >>> load(file, subset).unstack().dims
+    Frozen({'AOT550': 3, 'H2OSTR': 8, 'wl': 285})
     """
     ds = xr.open_mfdataset([file], mode="r", lock=False)
 
-    for dim, sub in subset.items():
-        if isinstance(sub, list):
-            lower, upper = sub
-            ds = ds.sel({dim: (lower < ds[dim]) & (ds[dim] < upper)})
-        elif isinstance(sub, float):
-            ds = ds.sel({dim: sub})
-        elif isinstance(sub, dict):
-            ds = sel(ds, dim, **sub)
-        elif isinstance(sub, int):
-            ds = ds.isel({dim: sub})
-        elif isinstance(sub, str):
-            ds = getattr(ds, sub)(dim)
+    # The subset dict must contain all coordinate keys in the lut file
+    missing = set(ds.coords) - ({"wl"} | set(subset))
+    if missing:
+        print(
+            "The following keys are in the LUT file but not specified how to be handled by the config:"
+        )
+        for key in missing:
+            print(f"- {key}")
+        raise AttributeError(
+            f"Subset dictionary is missing keys that are present in the LUT file: {missing}"
+        )
 
-    dims = lut_names or ds.drop_dims("wl").dims
+    # Apply subsetting strategies
+    for dim, strat in subset.items():
+        ds = subset(ds, dim, strat)
+
+    dims = set(ds.coords) - {"wl"}
     return ds.stack(point=dims).transpose("point", "wl")
 
 

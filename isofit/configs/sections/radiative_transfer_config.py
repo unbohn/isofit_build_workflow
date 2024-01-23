@@ -85,15 +85,11 @@ class RadiativeTransferEngineConfig(BaseConfigSection):
         implementation of the forward model.
         """
 
-        self._lut_names_type = list()
+        self._lut_names_type = dict()
         self.lut_names = None
         """List: Names of the elements to run this radiative transfer element on.  Must be a subset
         of the keys in radiative_transfer->lut_grid.  If not specified, uses all keys from
         radiative_transfer-> lut_grid.  Auto-sorted (alphabetically) below."""
-
-        self._lut_subset_type = dict()
-        self.lut_subset = {}
-        """Dict: Subsets a LUT file"""
 
         self._statevector_names_type = list()
         self.statevector_names = None
@@ -278,13 +274,12 @@ class RadiativeTransferConfig(BaseConfigSection):
 
         self._interpolator_style_type = str
         self.interpolator_style = "mlg"
-        """str: Style of interpolation. This argument is in the format [type][-k], eg:
-        - rg    = RegularGrid
-        - nds-k = NDSplines with K degrees
+        """str: Style of interpolation.
         - mlg   = Multilinear Grid
+        - rg    = RegularGrid
         Speed performance:
-            mlg >> stacked rg > unstacked nds > stacked nds >> unstacked rg
-        Caching provides significant gains for rg and nds, marginal for mlg"""
+            mlg >> stacked rg >> unstacked rg
+        Caching provides significant gains for rg, marginal for mlg"""
 
         self._overwrite_interpolator_type = bool
         self.overwrite_interpolator = False

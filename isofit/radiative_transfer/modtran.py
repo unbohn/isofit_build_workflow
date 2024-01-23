@@ -231,7 +231,7 @@ class ModtranRT(RadiativeTransferEngine):
         Post-initialized, pre-simulation setup
         """
         self.filtpath = os.path.join(
-            os.path.dirname(self.lut_path),
+            self.sim_path,
             f"wavelengths_{self.engine_config.engine_name}_{self.wl[0]}_{self.wl[-1]}.flt",
         )
         self.template = json_load_ascii(self.engine_config.template_file)["MODTRAN"]
@@ -584,7 +584,7 @@ class ModtranRT(RadiativeTransferEngine):
             lvl0["EXTC"] = [float(v) / total_extc550 for v in total_extc]
             lvl0["ABSC"] = [float(v) / total_extc550 for v in total_absc]
 
-        if self.engine_config.multipart_transmittance:
+        if self.multipart_transmittance:
             const_rfl = np.array(np.array(self.test_rfls) * 100, dtype=int)
             # Here we copy the original config and just change the surface reflectance
             param[0]["MODTRANINPUT"]["CASE"] = 0
