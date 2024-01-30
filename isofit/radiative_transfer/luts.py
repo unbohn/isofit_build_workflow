@@ -234,7 +234,7 @@ def sub(ds: xr.Dataset, dim: str, strat) -> xr.Dataset:
     elif isinstance(strat, str):
         return getattr(ds, strat)(dim)
 
-    elif isinstance(strat, type(None)):
+    elif strat is None:
         return ds  # Take dimension as-is
 
     elif isinstance(strat, dict):
@@ -244,8 +244,12 @@ def sub(ds: xr.Dataset, dim: str, strat) -> xr.Dataset:
 
         return sel(ds, dim, **strat)
 
+    else:
+        Logger.error(f"Unknown subsetting strategy for type: {type(strat)}")
+        return ds
 
-def load(file: str, subset: dict = {}) -> xr.Dataset:
+
+def load(file: str, subset: dict = None) -> xr.Dataset:
     """
     Loads a LUT NetCDF
     Assumes to be a regular grid at this time (auto creates the point dim)
@@ -278,7 +282,7 @@ def load(file: str, subset: dict = {}) -> xr.Dataset:
     ...     'AOT550': None,
     ...     'H2OSTR': [1.1853, 2.869],
     ...     'observer_zenith': None,
-    ...     'surface_elevation_km': None,
+    ...     'surface_elevation_km': None
     ... }
     >>> load(file, subset).dims
     Frozen({'wl': 285, 'point': 792})
@@ -293,7 +297,7 @@ def load(file: str, subset: dict = {}) -> xr.Dataset:
     ...         'lt': 2.869
     ...     },
     ...     'observer_zenith': None,
-    ...     'surface_elevation_km': None,
+    ...     'surface_elevation_km': None
     ... }
     >>> load(file, subset).dims
     Frozen({'wl': 285, 'point': 2376})
@@ -381,23 +385,34 @@ def load(file: str, subset: dict = {}) -> xr.Dataset:
     """
     ds = xr.open_mfdataset([file], mode="r", lock=False)
 
-    # The subset dict must contain all coordinate keys in the lut file
-    missing = set(ds.coords) - ({"wl"} | set(subset))
-    if missing:
-        print(
-            "The following keys are in the LUT file but not specified how to be handled by the config:"
-        )
-        for key in missing:
-            print(f"- {key}")
+    # Special case that doesn't require defining the entire grid subsetting strategy
+    if subset is None:
+        Logger.debug("Subset was None, using entire file")
+
+    elif isinstance(subset, dict):
+        # The subset dict must contain all coordinate keys in the lut file
+        missing = set(ds.coords) - ({"wl"} | set(subset))
+        if missing:
+            Logger.error(
+                "The following keys are in the LUT file but not specified how to be handled by the config:"
+            )
+            for key in missing:
+                Logger.error(f"- {key}")
+            raise AttributeError(
+                f"Subset dictionary is missing keys that are present in the LUT file: {missing}"
+            )
+
+        # Apply subsetting strategies
+        for dim, strat in subset.items():
+            ds = sub(ds, dim, strat)
+
+    else:
+        Logger.error("The subsetting strategy must be a dictionary")
         raise AttributeError(
-            f"Subset dictionary is missing keys that are present in the LUT file: {missing}"
+            f"Bad subsetting strategy, expected either a dict or a NoneType: {subset}"
         )
 
-    # Apply subsetting strategies
-    for dim, strat in subset.items():
-        ds = sub(ds, dim, strat)
-
-    dims = set(ds.coords) - {"wl"}
+    dims = ds.drop_dims("wl").dims
     return ds.stack(point=dims).transpose("point", "wl")
 
 
