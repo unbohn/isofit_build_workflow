@@ -116,7 +116,9 @@ def heuristic_atmosphere(
             # using this presumed amount of water vapor, and measure the
             # resulting residual (as measured from linear interpolation across
             # the absorption feature)
-            rho = meas * np.pi / (solar_irr * RT.coszen)
+            # ToDo: grab the per pixel sza from Geometry object
+            # rho = meas * np.pi / (solar_irr * RT.coszen)
+            rho = meas * np.pi / (solar_irr * np.cos(np.deg2rad(geom.solar_zenith)))
             r = 1.0 / (transm / (rho - rhoatm) + sphalb)
             ratios.append((r[b945] * 2.0) / (r[b1040] + r[b865]))
             h2os.append(h2o)
@@ -165,14 +167,16 @@ def invert_algebraic(
     wl, fwhm = instrument.calibration(x_instrument)
     rhoatm = instrument.sample(x_instrument, RT.wl, rhi["rhoatm"])
     transm = instrument.sample(
-        x_instrument, RT.wl, rhi["transm_down_dif"]
+        x_instrument, RT.wl, rhi["transm_down_dir"]+rhi["transm_down_dif"]
     )  # REVIEW: Changed from transm
     solar_irr = instrument.sample(x_instrument, RT.wl, RT.solar_irr)
     sphalb = instrument.sample(x_instrument, RT.wl, rhi["sphalb"])
     transup = instrument.sample(
         x_instrument, RT.wl, rhi["transm_up_dir"]
     )  # REVIEW: Changed from transup
-    coszen = RT.coszen
+    # ToDo: grab the per pixel sza from Geometry object
+    # coszen = RT.coszen
+    coszen = np.cos(np.deg2rad(geom.solar_zenith))
 
     # Prevent NaNs
     transm[transm == 0] = 1e-5
@@ -185,7 +189,7 @@ def invert_algebraic(
 
     # Now solve for the reflectance at measured wavelengths,
     # and back-translate to surface wavelengths
-    rho = rdn_solrfl * np.pi / (solar_irr * coszen)
+    rho = rdn_solrfl  # * np.pi / (solar_irr * coszen)
     rfl = 1.0 / (transm / (rho - rhoatm) + sphalb)
     rfl[rfl > 1.0] = 1.0
     rfl_est = interp1d(wl, rfl, fill_value="extrapolate")(surface.wl)

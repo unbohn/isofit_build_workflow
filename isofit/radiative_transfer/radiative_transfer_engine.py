@@ -19,6 +19,7 @@
 # Author: Niklas Bohn, urs.n.bohn@jpl.nasa.gov
 #
 
+from itertools import product
 import logging
 import os
 import time
@@ -27,9 +28,9 @@ from typing import Callable
 
 import numpy as np
 import ray
+import xarray as xr
 
 import isofit
-from isofit.configs import Config
 from isofit.configs.sections.radiative_transfer_config import (
     RadiativeTransferEngineConfig,
 )
@@ -175,6 +176,49 @@ class RadiativeTransferEngine:
             self.lut = luts.load(lut_path, subset=engine_config.lut_names)
             self.lut_grid = lut_grid or luts.extractGrid(self.lut)
             self.points, self.lut_names = luts.extractPoints(self.lut)
+        elif engine_config.engine_name == "KernelFlowsGP":
+            Logger.info(f"Emulating LUT using Kernel Flows GP")
+
+            self.lut_grid = lut_grid
+            self.lut_names = []
+            if "AOT550" in lut_grid.keys():
+                self.lut_names.append("AOT550")
+                self.aot_points = lut_grid["AOT550"]
+            else:
+                Logger.info(f"No grid points for AOT provided")
+                self.aot_points = None
+
+            if "H2OSTR" in lut_grid.keys():
+                self.lut_names.append("H2OSTR")
+                self.wv_points = lut_grid["H2OSTR"]
+            else:
+                Logger.info(f"No grid points for water vapor provided")
+                self.wv_points = None
+
+            if "surface_elevation_km" in lut_grid.keys():
+                self.lut_names.append("surface_elevation_km")
+                self.gndalt_points = lut_grid["surface_elevation_km"]
+            else:
+                Logger.info(f"No grid points for surface elevation provided")
+                self.gndalt_points = None
+
+            if "solar_zenith" in lut_grid.keys():
+                self.lut_names.append("solar_zenith")
+                self.sza_points = lut_grid["solar_zenith"]
+            else:
+                Logger.info(f"No grid points for solar zenith angle provided")
+                self.sza_points = None
+
+            self.points = np.array(list(product(self.aot_points, self.wv_points, self.gndalt_points, self.sza_points)))
+
+            from .kernel_flows import KernelFlowsRT
+            E = KernelFlowsRT(engine_config, wl, fwhm)
+            import time
+            t0 = time.time()
+            self.lut = E.predict(self.points)
+            t1 = time.time()
+            total = t1-t0
+            print(f"Emulating time for {len(self.points)} grid points: {total}")
         else:
             Logger.info(f"No LUT store found, beginning initialization and simulations")
             # Check if both wavelengths and fwhm are provided for building the LUT
@@ -219,7 +263,8 @@ class RadiativeTransferEngine:
 
         self.n_chan = len(self.wl)
 
-        # TODO: This is a bad variable name - change (it's the number of input dimensions of the lut (p) not the number of samples)
+        # TODO: This is a bad variable name - change
+        #  (it's the number of input dimensions of the lut (p) not the number of samples)
         self.n_point = len(self.lut_names)
 
         # Simple 1-item cache for rte.interpolate()
@@ -249,7 +294,10 @@ class RadiativeTransferEngine:
         Enables key indexing for easier access to the numpy object store in
         self.lut[key]
         """
-        return self.lut[key].load().data
+        if self.engine_config.engine_name == "KernelFlowsGP":
+            return self.lut[key]
+        else:
+            return self.lut[key].load().data
 
     @property
     def lut_interp_types(self):
@@ -268,22 +316,38 @@ class RadiativeTransferEngine:
         """
         self.luts = {}
 
-        # Convert from 2d (point, wl) to Nd (*luts, wl)
-        ds = self.lut.unstack("point")
+        if self.engine_config.engine_name == "KernelFlowsGP":
+            # Create the unique
+            grid = [self.aot_points, self.wv_points, self.gndalt_points, self.sza_points]
+            for key in self.alldim:
+                data = self.lut[key].reshape(len(self.aot_points),
+                                             len(self.wv_points),
+                                             len(self.gndalt_points),
+                                             len(self.sza_points),
+                                             len(self.lut["wl"]))
+                self.luts[key] = common.VectorInterpolator(
+                    grid_input=grid,
+                    data_input=data,
+                    lut_interp_types=self.lut_interp_types,
+                    version=self.interpolator_style,
+                )
+        else:
+            # Convert from 2d (point, wl) to Nd (*luts, wl)
+            ds = self.lut.unstack("point")
 
-        # Make sure its in expected order, wl at the end
-        ds = ds.transpose(*self.lut_names, "wl")
+            # Make sure its in expected order, wl at the end
+            ds = ds.transpose(*self.lut_names, "wl")
 
-        grid = [ds[key].data for key in self.lut_names]
+            grid = [ds[key].data for key in self.lut_names]
 
-        # Create the unique
-        for key in self.alldim:
-            self.luts[key] = common.VectorInterpolator(
-                grid_input=grid,
-                data_input=ds[key].load(),
-                lut_interp_types=self.lut_interp_types,
-                version=self.interpolator_style,
-            )
+            # Create the unique
+            for key in self.alldim:
+                self.luts[key] = common.VectorInterpolator(
+                    grid_input=grid,
+                    data_input=ds[key].load(),
+                    lut_interp_types=self.lut_interp_types,
+                    version=self.interpolator_style,
+                )
 
     def preSim(self):
         """

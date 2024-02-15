@@ -201,7 +201,7 @@ class RadiativeTransferEngineConfig(BaseConfigSection):
                         )
                     )
 
-        valid_rt_engines = ["modtran", "6s", "sRTMnet"]
+        valid_rt_engines = ["modtran", "6s", "sRTMnet", "KernelFlowsGP"]
         if self.engine_name not in valid_rt_engines:
             errors.append(
                 "radiative_transfer->raditive_transfer_model: {} not in one of the"
