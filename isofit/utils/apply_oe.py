@@ -295,6 +295,10 @@ def apply_oe(args):
         paths.loc_working_path, lut_params, pressure_elevation=args.pressure_elevation
     )
 
+    if lut_params.flag_ocean_elevation:
+        elevation_lut_grid = None
+        mean_elevation_km = 0.0
+
     if args.emulator_base is not None:
         if elevation_lut_grid is not None and np.any(elevation_lut_grid < 0):
             to_rem = elevation_lut_grid[elevation_lut_grid < 0].copy()
@@ -912,7 +916,7 @@ class LUTConfig:
         self.aerosol_1_spacing_min = 0
 
         # Units of AOD
-        self.aerosol_2_spacing = 0.1
+        self.aerosol_2_spacing = 0.25
         self.aerosol_2_spacing_min = 0
 
         # Units of AOD
@@ -923,6 +927,9 @@ class LUTConfig:
 
         self.aot_550_spacing = 0
         self.aot_550_spacing_min = 0
+        
+        self.rte_auto_rebuild = True
+        self.flag_ocean_elevation = False
 
         # overwrite anything that comes in from the config file
         if lut_config_file is not None:
@@ -1430,7 +1437,7 @@ def get_metadata_from_loc(
     min_elev = np.min(loc_data[2, valid]) / 1000.0
     max_elev = np.max(loc_data[2, valid]) / 1000.0
     if pressure_elevation:
-        min_elev = max(min_elev - 2, 0)
+        min_elev = max(min_elev - 2, 0.25)
         max_elev += 2
     elevation_lut_grid = lut_params.get_grid(
         min_elev,
@@ -1809,10 +1816,16 @@ def build_main_config(
             "ray_temp_dir": paths.ray_temp_dir,
             "inversion": {"windows": INVERSION_WINDOWS},
             "n_cores": n_cores,
-            "debug_mode": debug,
+            "debug_mode": debug
         },
     }
-
+    
+    if hasattr(lut_params,"rte_auto_rebuild"):
+        isofit_config_modtran["implementation"]["rte_auto_rebuild"] = lut_params.rte_auto_rebuild
+        logging.info(f"Set rte_auto_rebuild from LUT config file (rte_auto_rebuild = {lut_params.rte_auto_rebuild})")
+    else:
+        logging.info('rte_auto_rebuild not in lut_params')
+    
     if use_emp_line:
         isofit_config_modtran["input"]["measured_radiance_file"] = paths.rdn_subs_path
         isofit_config_modtran["input"]["loc_file"] = paths.loc_subs_path
@@ -1980,12 +1993,12 @@ def write_modtran_template(
                     "SPECTRAL": {
                         "V1": 340.0,
                         "V2": 2520.0,
-                        "DV": 0.1,
-                        "FWHM": 0.1,
+                        "DV": 1,
+                        "FWHM": 1,
                         "YFLAG": "R",
                         "XFLAG": "N",
                         "FLAGS": "NT A   ",
-                        "BMNAME": "p1_2013",
+                        "BMNAME": "01_2013",
                     },
                     "FILEOPTIONS": {"NOPRNT": 2, "CKPRNT": True},
                 }

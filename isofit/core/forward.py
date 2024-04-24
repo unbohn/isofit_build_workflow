@@ -91,10 +91,11 @@ class ForwardModel:
             self.surface = AdditiveGlintSurface(self.full_config)
         elif self.config.surface.surface_category == "glint_model_surface":
             self.surface = GlintModelSurface(self.full_config)
-            try:
-                self.full_glint = self.config.surface.full_glint
-            except AttributeError:
-                self.full_glint = False
+            self.full_glint = (
+                self.config.surface.full_glint
+                if hasattr(self.config.surface,"full_glint")
+                else False
+            )
         elif self.config.surface.surface_category == "thermal_surface":
             self.surface = ThermalSurface(self.full_config)
         elif self.config.surface.surface_category == "lut_surface":

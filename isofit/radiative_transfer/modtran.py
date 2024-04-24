@@ -27,6 +27,7 @@ import subprocess
 from copy import deepcopy
 from sys import platform
 
+import time
 import numpy as np
 import scipy.interpolate
 import scipy.stats
@@ -596,8 +597,8 @@ class ModtranRT(TabularRT):
                         param[0]["MODTRANINPUT"]["ATMOSPHERE"]["NPROF"] = nprof + 1
 
             # Surface parameters we want to populate even if unassigned
-            elif key in ["GNDALT"]:
-                param[0]["MODTRANINPUT"]["SURFACE"][key] = val
+            elif key in ["surface_elevation_km","GNDALT"]:
+                param[0]["MODTRANINPUT"]["SURFACE"]["GNDALT"] = val
 
             elif key in ["observer_zenith", "obszen"]:
                 param[0]["MODTRANINPUT"]["GEOMETRY"]["OBSZEN"] = val
@@ -637,8 +638,9 @@ class ModtranRT(TabularRT):
             lvl0["NARSPC"] = len(self.aer_wl)
             lvl0["VARSPC"] = [float(v) for v in self.aer_wl]
             lvl0["ASYM"] = [float(v) for v in total_asym]
-            lvl0["EXTC"] = [float(v) / total_extc550 for v in total_extc]
+            lvl0["EXTC"] = [float(v) / total_extc550 for v in total_extc] 
             lvl0["ABSC"] = [float(v) / total_extc550 for v in total_absc]
+            #***Need to round this to a specific number of decimels when writing to make sure subsequent re-runs are exactly the same
 
         if self.multipart_transmittance:
             const_rfl = np.array(np.array(self.test_rfls) * 100, dtype=int)
@@ -713,8 +715,10 @@ class ModtranRT(TabularRT):
                     if os.path.isdir(self.lut_dir) is False:
                         os.mkdir(self.lut_dir)
                     try:
-                        subprocess.call(cmd, shell=True, timeout=10, cwd=self.lut_dir)
-                    except:
+                        subprocess.call(cmd, shell=True, timeout=20, cwd=self.lut_dir)
+                    except Exception as e:
+                        logging.info("Error occurred running H2O_bound_test:")
+                        logging.info(str(e))
                         pass
 
                     max_water = None
@@ -751,12 +755,39 @@ class ModtranRT(TabularRT):
                         raise KeyError(
                             "MODTRAN H2O lut grid is invalid - see logs for details."
                         )
-
-        TabularRT.build_lut(self, rebuild)
-
-        mod_outputs = []
-        for point, fn in zip(self.points, self.files):
-            mod_outputs.append(self.load_rt(fn))
+                        
+        done = False
+        prev_file_not_found = ''
+        n_rerun = 0
+        while not done:
+            #Build the LUT
+            TabularRT.build_lut(self, rebuild)
+            
+            try:
+                #Try to load in all the files
+                mod_outputs = []
+                for point, fn in zip(self.points, self.files):
+                    mod_outputs.append(self.load_rt(fn))
+                logging.info("All LUT files loaded, proceeding")
+                done = True
+            except FileNotFoundError as e:
+                time.sleep(np.random.randint(1, 10) / 10.)
+                #Extract filename that doesn't exist
+                file_not_found = e.filename
+                logging.info(f"File not found: {file_not_found}")
+                n_rerun += 1
+                if not self.auto_rebuild:
+                    logging.info('rte_auto_rebuild disabled; stopping')
+                    raise e
+                if prev_file_not_found == file_not_found:
+                    logging.info("Repeated file not found; stopping")
+                    raise e
+                    # Throw error
+                if n_rerun >= 10:
+                    logging.info(f"{n_rerun} reruns without all files loading; stopping")
+                    raise e
+                    # Throw error
+                prev_file_not_found = file_not_found
 
         self.wl = mod_outputs[0]["wl"]
         self.solar_irr = mod_outputs[0]["sol"]
@@ -803,11 +834,44 @@ class ModtranRT(TabularRT):
                 modtran_config[0]["MODTRANINPUT"]["NAME"] = ""
                 current_config[0]["MODTRANINPUT"]["SPECTRAL"]["FILTNM"] = ""
                 modtran_config[0]["MODTRANINPUT"]["SPECTRAL"]["FILTNM"] = ""
+                if self.multipart_transmittance:
+                    current_config[1]["MODTRANINPUT"]["NAME"] = ""
+                    modtran_config[1]["MODTRANINPUT"]["NAME"] = ""
+                    current_config[1]["MODTRANINPUT"]["SPECTRAL"]["FILTNM"] = ""
+                    modtran_config[1]["MODTRANINPUT"]["SPECTRAL"]["FILTNM"] = ""
+                    current_config[2]["MODTRANINPUT"]["NAME"] = ""
+                    modtran_config[2]["MODTRANINPUT"]["NAME"] = ""
+                    current_config[2]["MODTRANINPUT"]["SPECTRAL"]["FILTNM"] = ""
+                    modtran_config[2]["MODTRANINPUT"]["SPECTRAL"]["FILTNM"] = ""
+                    #Hacky fix to decimel places not matching
+                    try:
+                        modtran_config[0]["MODTRANINPUT"]["AEROSOLS"]["IREGSPC"][0]["EXTC"] = ""
+                        modtran_config[0]["MODTRANINPUT"]["AEROSOLS"]["IREGSPC"][0]["ABSC"] = ""
+                        modtran_config[1]["MODTRANINPUT"]["AEROSOLS"]["IREGSPC"][0]["EXTC"] = ""
+                        modtran_config[1]["MODTRANINPUT"]["AEROSOLS"]["IREGSPC"][0]["ABSC"] = ""
+                        modtran_config[2]["MODTRANINPUT"]["AEROSOLS"]["IREGSPC"][0]["EXTC"] = ""
+                        modtran_config[2]["MODTRANINPUT"]["AEROSOLS"]["IREGSPC"][0]["ABSC"] = "" 
+                        
+                        current_config[0]["MODTRANINPUT"]["AEROSOLS"]["IREGSPC"][0]["EXTC"] = ""
+                        current_config[0]["MODTRANINPUT"]["AEROSOLS"]["IREGSPC"][0]["ABSC"] = ""
+                        current_config[1]["MODTRANINPUT"]["AEROSOLS"]["IREGSPC"][0]["EXTC"] = ""
+                        current_config[1]["MODTRANINPUT"]["AEROSOLS"]["IREGSPC"][0]["ABSC"] = ""
+                        current_config[2]["MODTRANINPUT"]["AEROSOLS"]["IREGSPC"][0]["EXTC"] = ""
+                        current_config[2]["MODTRANINPUT"]["AEROSOLS"]["IREGSPC"][0]["ABSC"] = ""
+                    except KeyError:
+                        pass
+                
+                    
                 current_str = json.dumps(current_config)
                 modtran_str = json.dumps(modtran_config)
                 rebuild = modtran_str.strip() != current_str.strip()
+                
 
+        if rebuild:
+            logging.info(f"Rebuilding {infilename}")
+            
         if not rebuild:
+            logging.info(f"File exists {infilename}")
             raise FileExistsError("File exists")
 
         # write_config_file
@@ -853,7 +917,11 @@ class ModtranRT(TabularRT):
         coszen = np.cos(solzen * np.pi / 180.0)
 
         chnfile = os.path.join(self.lut_dir, fn + ".chn")
-        params = self.load_chn(chnfile, coszen)
+        try:
+            params = self.load_chn(chnfile, coszen)
+        except ValueError as e:
+            logging.info(f"Error upon load for {chnfile}",flush=True)
+            raise e
 
         # Be careful with the two thermal values! They can only be used in
         # the modtran_tir functions as they require the modtran reflectivity
