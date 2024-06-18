@@ -294,6 +294,7 @@ def apply_oe(args):
         mean_path_km,
         mean_to_sensor_azimuth,
         mean_to_sensor_zenith,
+        mean_to_sun_azimuth,
         mean_to_sun_zenith,
         mean_relative_azimuth,
         valid,
