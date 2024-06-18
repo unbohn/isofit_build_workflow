@@ -24,6 +24,7 @@ import logging
 import os
 import re
 import subprocess
+import time
 from copy import deepcopy
 from sys import platform
 
@@ -547,21 +548,17 @@ class ModtranRT(RadiativeTransferEngine):
                         param[0]["MODTRANINPUT"]["ATMOSPHERE"]["NPROF"] = nprof + 1
 
             # Surface parameters we want to populate even if unassigned
-            elif key in ["GNDALT"]:
-                param[0]["MODTRANINPUT"]["SURFACE"][key] = val
+            elif key in ["surface_elevation_km", "GNDALT"]:
+                param[0]["MODTRANINPUT"]["SURFACE"]["GNDALT"] = val
 
-            elif key in ["solar_azimuth", "solaz"]:
-                if "TRUEAZ" not in param[0]["MODTRANINPUT"]["GEOMETRY"]:
-                    raise AttributeError(
-                        "Cannot have solar azimuth in LUT without specifying TRUEAZ. "
-                        " Use RELAZ instead."
-                    )
-                param[0]["MODTRANINPUT"]["GEOMETRY"]["PARM1"] = (
-                    param[0]["MODTRANINPUT"]["GEOMETRY"]["TRUEAZ"] - val + 180
-                )
+            elif key in ["observer_zenith", "obszen"]:
+                param[0]["MODTRANINPUT"]["GEOMETRY"]["OBSZEN"] = val
 
             elif key in ["solar_zenith", "solzen"]:
                 param[0]["MODTRANINPUT"]["GEOMETRY"]["PARM2"] = abs(val)
+
+            elif key in ["relative_azimuth", "relaz"]:
+                param[0]["MODTRANINPUT"]["GEOMETRY"]["PARM1"] = val
 
             # elif key in ['altitude_km']
 
@@ -594,6 +591,7 @@ class ModtranRT(RadiativeTransferEngine):
             lvl0["ASYM"] = [float(v) for v in total_asym]
             lvl0["EXTC"] = [float(v) / total_extc550 for v in total_extc]
             lvl0["ABSC"] = [float(v) / total_extc550 for v in total_absc]
+            # ***Need to round this to a specific number of decimels when writing to make sure subsequent re-runs are exactly the same
 
         if self.multipart_transmittance:
             const_rfl = np.array(np.array(self.test_rfls) * 100, dtype=int)
