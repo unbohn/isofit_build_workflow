@@ -157,14 +157,14 @@ class RadiativeTransferEngine:
                 )
 
             # If not provided by the LUT, calculate flux coupling terms before resampling
-            coupling_terms = [
+            self.coupling_terms = [
                 key
                 for key in self.lut
                 if key in ["bi-direct", "hemi-direct", "direct-hemi", "bi-hemi"]
             ]
             if (
-                len(coupling_terms) < 4
-                or any([self.lut[key] for key in coupling_terms]) == 0
+                len(self.coupling_terms) < 4
+                or any([self.lut[key] for key in self.coupling_terms]) == 0
             ):
                 Logger.info(
                     "LUT does not provide full suite of coupling terms. Calculate them now before resampling."
