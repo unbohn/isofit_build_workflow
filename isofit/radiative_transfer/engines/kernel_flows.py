@@ -228,9 +228,13 @@ class KernelFlowsRT(RadiativeTransferEngine):
             lambda x: np.cos(np.deg2rad(x)),
             lambda x: np.cos(np.deg2rad(90 - x)),
             lambda x: np.log(180 - x),
+            lambda x: np.exp(x),
+            lambda x: np.sqrt(x),
+            lambda x: np.sign(x) * x * x,
         ]
         self.output_transfs = [
             lambda x: x,
+            lambda x: 1 / x - 10,
             lambda x: np.exp(x) - 0.1,
         ]
 
@@ -349,8 +353,8 @@ class KernelFlowsRT(RadiativeTransferEngine):
                 self.f["MVM" + str(i)], point, self.f["input_transfs"][i - 1, :]
             )
             self.ga.append(MVM)
-        self.ga[1] = self.output_transfs[0](self.ga[1][:, :])
-        self.ga[2] = self.output_transfs[0](self.ga[2][:, :])
+        self.ga[1] = self.output_transfs[1](self.ga[1][:, :])
+        self.ga[2] = self.output_transfs[1](self.ga[2][:, :])
 
         combined = {
             "rhoatm": self.ga[0],
