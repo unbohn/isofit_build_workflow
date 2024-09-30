@@ -70,9 +70,10 @@ def bounds_check(
 
         emulator_names = [KEYMAPPING[i]["name"] for i in emulator["inputdims"]]
 
-    # convert observer zenith grid to MODTRAN convetion.
+    # convert to MODTRAN convention as needed since KF emulator is trained on that
     if "observer_zenith" in grid.keys():
-        grid["observer_zenith"] = [180 - x for x in grid["observer_zenith"]]
+        if any(grid["observer_zenith"] < 90.0):
+            grid["observer_zenith"] = [180 - x for x in grid["observer_zenith"]]
 
     grid_errors = []
     for _key, key in enumerate(emulator_names):
@@ -334,11 +335,12 @@ class KernelFlowsRT(RadiativeTransferEngine):
         point = self.default_fills.copy()
         point[self.emulator_inds_to_point_inds] = in_point
 
-        # observer zenith in LUT grid comes in ANG OBS file convention.
-        # convert to MODTRAN convention as KF emulator is trained on that
-        point[self.emulator_names.index("observer_zenith")] = (
-            180 - point[self.emulator_names.index("observer_zenith")]
-        )
+        # check if observer zenith in LUT grid comes in ANG OBS / MODTRAN file convention.
+        # if not, convert to ANG OBS / MODTRAN convention as needed since KF emulator is trained on that
+        if point[self.emulator_names.index("observer_zenith")] < 90.0:
+            point[self.emulator_names.index("observer_zenith")] = (
+                180 - point[self.emulator_names.index("observer_zenith")]
+            )
 
         if np.any(point < self.points_bound_min) or np.any(
             point > self.points_bound_max
