@@ -355,8 +355,13 @@ class KernelFlowsRT(RadiativeTransferEngine):
                 self.f["MVM" + str(i)], point, self.f["input_transfs"][i - 1, :]
             )
             self.ga.append(MVM)
-        self.ga[1] = self.output_transfs[1](self.ga[1][:, :])
-        self.ga[2] = self.output_transfs[1](self.ga[2][:, :])
+
+        # self.ga[1] = self.output_transfs[1](self.ga[1][:, :])
+        # self.ga[2] = self.output_transfs[1](self.ga[2][:, :])
+
+        self.ga[1] = np.exp(self.ga[1])
+        self.ga[0] = self.ga[0][:, :] * np.exp(self.ga[2])
+        self.ga[2] = np.exp(self.ga[2]) - self.ga[1] - 0.001
 
         combined = {
             "rhoatm": self.ga[0],
@@ -368,41 +373,6 @@ class KernelFlowsRT(RadiativeTransferEngine):
             "thermal_upwelling": np.zeros(self.ga[0].shape),
             "thermal_downwelling": np.zeros(self.ga[0].shape),
             "solar_irr": np.zeros(self.wl.shape),
-        }
-        return combined
-
-    def predict(self, points):
-
-        if np.any(points < self.points_bound_min) or np.any(
-            points > self.points_bound_max
-        ):
-            outstr = f"Input points are out of bounds xmin: {self.points_bound_min}, xmax: {self.points_bound_max}"
-            raise ValueError(outstr)
-
-        nMVMs = len(self.f.keys()) - 6
-        for i in range(1, 1 + nMVMs):
-            MVM = self.predict_single_MVM(
-                self.f["MVM" + str(i)], points, self.f["input_transfs"][i - 1, :]
-            )
-            self.ga.append(MVM)
-
-        # back-transform some quantities from log space
-        # ToDo: this might not always be needed,
-        #  so we need an if-statement at some point
-        ga_1 = self.output_transfs[0](self.ga[1][:, :])
-        ga_2 = self.output_transfs[0](self.ga[2][:, :])
-
-        combined = {
-            "rhoatm": self.ga[0],
-            "sphalb": self.ga[3],
-            "transm_down_dir": ga_1,
-            "transm_down_dif": ga_2,
-            "transm_up_dir": np.zeros(self.ga[0].shape),
-            "transm_up_dif": np.zeros(self.ga[0].shape),
-            "thermal_upwelling": np.zeros(self.ga[0].shape),
-            "thermal_downwelling": np.zeros(self.ga[0].shape),
-            "solar_irr": np.zeros(self.wl.shape),
-            "wl": self.wl,
         }
         return combined
 
@@ -452,5 +422,6 @@ class KernelFlowsRT(RadiativeTransferEngine):
         # H is same as in recover() in dimension_reduction.jl
         MP = self.srf_matrix @ G["Yproj"]["vectors"][:, :].T
         H = MP * G["Yproj"]["values"][:]
-        srfmean = self.srf_matrix @ G["Ymean"]
-        return (ZY_pred @ H.T) * G["Ystd"] + srfmean
+        # srfmean = self.srf_matrix @ G["Ymean"]
+        # srfstd = self.srf_matrix @ G["Ystd"]
+        return (ZY_pred @ H.T) * G["Ystd"] + G["Ymean"]
