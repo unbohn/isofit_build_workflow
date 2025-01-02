@@ -274,7 +274,7 @@ class RadiativeTransfer:
         return np.hstack(L_atms)
 
     def get_L_down_transmitted(self, x_RT: np.array, geom: Geometry) -> np.array:
-        """Get the interpolated total downward atmospheric transmittance.
+        """Get the interpolated total, direct, and diffuse downward atmospheric radiance.
         Thermal_downwelling already includes the transmission factor. Also
         assume there is no multiple scattering for TIR.
 
@@ -283,9 +283,12 @@ class RadiativeTransfer:
             geom: local geometry conditions for lookup
 
         Returns:
-            interpolated total downward atmospheric transmittance
+            interpolated total, direct, and diffuse downward atmospheric radiance
         """
         L_downs = []
+        L_downs_dir = []
+        L_downs_dif = []
+
         for RT in self.rt_engines:
             if RT.treat_as_emissive:
                 r = RT.get(x_RT, geom)
@@ -294,12 +297,20 @@ class RadiativeTransfer:
             else:
                 r = RT.get(x_RT, geom)
                 if RT.rt_mode == "rdn":
-                    L_down = r["transm_down_dir"] + r["transm_down_dif"]
+                    L_down_dir = r["transm_down_dir"]
+                    L_down_dif = r["transm_down_dif"]
                 else:
-                    transm_down = r["transm_down_dir"] + r["transm_down_dif"]
-                    L_down = self.rho_to_rdn(transm_down)
+                    # Transform downward transmittance to radiance
+                    L_down_dir = self.rho_to_rdn(r["transm_down_dir"])
+                    L_down_dif = self.rho_to_rdn(r["transm_down_dif"])
+
+                L_down = L_down_dir + L_down_dif
+
                 L_downs.append(L_down)
-        return np.hstack(L_downs)
+                L_downs_dir.append(L_down_dir)
+                L_downs_dif.append(L_down_dif)
+
+        return np.hstack(L_downs), np.hstack(L_downs_dir), np.hstack(L_downs_dif)
 
     def get_L_coupled(self, r, coszen, cos_i):
         """Get the interpolated radiances on the sun-to-surface-to-sensor path.
@@ -378,12 +389,11 @@ class RadiativeTransfer:
         # note: currently, L_down_dir comes scaled by the TOA solar zenith angle,
         # thus, unscaling and rescaling by local solar zenith angle required
         # to account for surface slope and aspect
-        L_down_dir, L_down_dif = self.get_L_down(x_RT, geom)
+        L_down_tot, L_down_dir, L_down_dif = self.get_L_down_transmitted(x_RT, geom)
         L_down_dir = L_down_dir / self.coszen * cos_i
 
         # including glint for water surfaces
         if self.glint_model:
-            L_down_tot = L_down_dir + L_down_dif
             L_sky = x_surface[-2] * L_down_dir + x_surface[-1] * L_down_dif
 
             rho_ls = 0.02  # fresnel reflectance factor (approx. 0.02 for nadir view)
