@@ -21,12 +21,15 @@
 #
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 
 import numpy as np
 
 from isofit.core.common import eps
 from isofit.radiative_transfer.engines import Engines
+
+Logger = logging.getLogger(__file__)
 
 
 def confPriority(key, configs):
@@ -220,6 +223,30 @@ class RadiativeTransfer:
 
         return ret
 
+    def rdn_to_rho(self, rdn):
+        """Function to convert a radiance vector to transmittance.
+
+        Args:
+            rdn: input data vector in radiance
+
+        Returns:
+            Data vector converted to transmittance
+        """
+        rho = rdn * np.pi / (self.solar_irr * self.coszen)
+        return rho
+
+    def rho_to_rdn(self, rho):
+        """Function to convert a transmittance vector to radiance.
+
+        Args:
+            rho: input data vector in transmittance
+
+        Returns:
+            Data vector converted to radiance
+        """
+        rdn = (self.solar_irr * self.coszen) / np.pi * rho
+        return rdn
+
     def get_L_atm(self, x_RT: np.array, geom: Geometry) -> np.array:
         """Get the interpolated modeled atmospheric path radiance.
 
@@ -238,24 +265,25 @@ class RadiativeTransfer:
                 L_atms.append(rdn)
             else:
                 r = RT.get(x_RT, geom)
-                rdn = r["rhoatm"]
-                if RT.rt_mode == "transm":
-                    # transform atmospheric path reflectance to path radiance
-                    rdn = (self.solar_irr * self.coszen) / np.pi * rdn
-                L_atms.append(rdn)
+                if RT.rt_mode == "rdn":
+                    L_atm = r["rhoatm"]
+                else:
+                    rho_atm = r["rhoatm"]
+                    L_atm = self.rho_to_rdn(rho_atm)
+                L_atms.append(L_atm)
         return np.hstack(L_atms)
 
-    def get_L_down(self, x_RT: np.array, geom: Geometry) -> np.array:
-        """Get the interpolated direct and diffuse downward radiance on the sun-to-surface path.
-        Thermal_downwelling already includes the transmission factor.
-        Also assume there is no multiple scattering for TIR.
+    def get_L_down_transmitted(self, x_RT: np.array, geom: Geometry) -> np.array:
+        """Get the interpolated total downward atmospheric transmittance.
+        Thermal_downwelling already includes the transmission factor. Also
+        assume there is no multiple scattering for TIR.
 
         Args:
             x_RT: radiative-transfer portion of the statevector
             geom: local geometry conditions for lookup
 
         Returns:
-            interpolated direct and diffuse downward radiance on the sun-to-surface path
+            interpolated total downward atmospheric transmittance
         """
         L_downs = []
         for RT in self.rt_engines:
@@ -265,17 +293,12 @@ class RadiativeTransfer:
                 L_downs.append(rdn)
             else:
                 r = RT.get(x_RT, geom)
-                L_down_dir = r["transm_down_dir"]
-                L_down_dif = r["transm_down_dif"]
-                if RT.rt_mode == "transm":
-                    # transform downward transmittance to downward radiance
-                    L_down_dir = (
-                        (self.solar_irr * self.coszen) / np.pi * r["transm_down_dir"]
-                    )
-                    L_down_dif = (
-                        (self.solar_irr * self.coszen) / np.pi * r["transm_down_dif"]
-                    )
-                L_downs.append((L_down_dir, L_down_dif))
+                if RT.rt_mode == "rdn":
+                    L_down = r["transm_down_dir"] + r["transm_down_dif"]
+                else:
+                    transm_down = r["transm_down_dir"] + r["transm_down_dif"]
+                    L_down = self.rho_to_rdn(transm_down)
+                L_downs.append(L_down)
         return np.hstack(L_downs)
 
     def get_L_coupled(self, r, coszen, cos_i):
