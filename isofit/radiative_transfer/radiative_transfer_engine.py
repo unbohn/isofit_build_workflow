@@ -108,7 +108,7 @@ class RadiativeTransferEngine:
         self.rt_mode = (
             engine_config.rt_mode if engine_config.rt_mode is not None else "transm"
         )
-        self.coupling_terms = ["bi-direct", "hemi-direct", "direct-hemi", "bi-hemi"]
+        self.coupling_terms = ["dir-dir", "dif-dir", "dir-dif", "dif-dif"]
         self.multipart_transmittance = engine_config.multipart_transmittance
         self.topography_model = engine_config.topography_model
         self.glint_model = engine_config.glint_model
