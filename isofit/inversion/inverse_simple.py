@@ -246,9 +246,6 @@ def invert_analytical(
         x: MAP estimate of the mean
         S: diagonal conditional posterior covariance estimate
     """
-    from scipy.linalg.blas import dsymv
-    from scipy.linalg.lapack import dpotrf, dpotri
-
     # x = x0.copy()
     # x_surface, x_RT, x_instrument = fm.unpack(x)
     # Note, this will fail if x_instrument is populated
@@ -285,122 +282,112 @@ def invert_analytical(
     x_surface, x_RT, x_instrument = fm.unpack(x)
 
     Seps = fm.Seps(x, meas, geom)[winidx, :][:, winidx]
+    GIv = 1 / np.diag(Seps)
 
     Sa = fm.Sa(x, geom)
     Sa_surface = Sa[fm.idx_surface, :][:, fm.idx_surface]
-
     Sa_inv = svd_inv_sqrt(Sa_surface, hash_table, hash_size)[0]
 
     xa_full = fm.xa(x, geom)
     xa_surface = xa_full[fm.idx_surface]
 
+    # Product of the prior covariance and mean
+    prprod = Sa_inv @ xa_surface
+
+    # Downwards irradiance terms
+    L_down_total, L_down_dir, L_down_dif = fm.RT.get_L_down_transmitted(x_RT, geom)
+
+    # Get rtm table
+    rtm_quant = fm.RT.get_shared_rtm_quantities(x_RT, geom)
+
+    # Coupled irradiance terms
+    cos_i = geom.cos_i if geom.cos_i is not None else coszen
+    L_dir_dir, L_dif_dir, L_dir_dif, L_dif_dif = fm.RT.get_L_coupled(
+        rtm_quant, fm.RT.coszen, cos_i
+    )
+    L_tot = L_dir_dir + L_dif_dir + L_dir_dif + L_dif_dif
+
+    # Define glint effect
     if fm.RT.glint_model:
-        winglintidx = np.concatenate(
-            (winidx, fm.idx_surf_nonrfl), axis=0
-        )  # Include glint indices
-        outside_ret_windows = np.ones(len(fm.idx_surface), dtype=bool)
-        outside_ret_windows[winglintidx] = False
-        outside_ret_windows = np.where(outside_ret_windows)[0]
-
-        prprod = Sa_inv[winglintidx, :][:, winglintidx] @ xa_surface[winglintidx]
-        # obtain needed RT vectors
-        r = fm.RT.get_L_atm(x_RT, geom)[winidx]  # path radiance
-        L_down_total, L_down_dir, L_down_dif = fm.RT.get_L_down_transmitted(x_RT, geom)[
-            winidx
-        ]  # total (down * up, direct + diffuse), direct, and diffuse downward radiance
-        rtm_quant = fm.RT.get_shared_rtm_quantities(x_RT, geom)
-        s = rtm_quant["sphalb"][winidx]  # spherical albedo
         rho_ls = fm.RT.fresnel_rf(geom.observer_zenith)
-        g_dir = rho_ls * (L_down_dir / L_down_total)  # direct sky transmittance
-        g_dif = rho_ls * (L_down_dif / L_down_total)  # diffuse sky transmittance
+    else:
+        rho_ls = 0
+    # Direct glint term, 0s if no glint
+    g_dir = rho_ls * (L_down_dir / L_down_total)
+    # Diffuse glint term, 0s if no glint
+    g_dif = rho_ls * (L_down_dif / L_down_total)
 
-        nl = len(r)
-        H = np.zeros((nl, nl + 2))
-        np.fill_diagonal(H, 1)
+    # Propogate modeled spherical albedo
+    s = rtm_quant["sphalb"]
+
+    # Get path radiance
+    L_atm = fm.RT.get_L_atm(x_RT, geom)
+
+    nl = len(x_surface)
+    H = np.zeros((len(L_down_total), nl))
+    np.fill_diagonal(H, 1)
+    if fm.RT.glint_model:
         H[:, -2] = g_dir
         H[:, -1] = g_dif
 
-        GIv = 1 / np.diag(Seps)
+    # Get the inversion indices
+    full_idx = np.concatenate(
+        (winidx, fm.idx_surf_nonrfl), axis=0
+    )  # Include glint indices
+    outside_ret_windows = np.ones(len(fm.idx_surface), dtype=bool)
+    outside_ret_windows[full_idx] = False
+    outside_ret_windows = np.where(outside_ret_windows)[0]
 
-        xk = x[fm.idx_surface].copy()
+    # Save init state as x0
+    trajectory.append(x)
+    for n in range(num_iter):
+        Dv = L_tot / (
+            1
+            - (
+                s
+                * (
+                    x_surface[: len(L_down_total)]
+                    + x_surface[-2] * g_dir
+                    + x_surface[-1] * g_dif
+                )
+            )
+        )
+        # Set up L Matrix from Susiluoto, 2025
+        # This is very similar to the K matrix used for the surface
+        # derivative in the iterative solution.
+        # The numerators are different however. If the numerator
+        # should be L_down_total, the fm.K command can be used
+        # and glint terms are scaled by * g_dir (or g_dif) respectively.
+        L = Dv.reshape((-1, 1)) * H
+
+        # Sample just the part of L we want to use for inversion
+        L = L[winidx, :][:, full_idx]
+
+        M = GIv.reshape((-1, 1)) * L
+        S = L.T @ M
+        C_rcond = np.linalg.inv(Sa_inv[full_idx, :][:, full_idx] + S)
+        z = meas[winidx] - L_atm[winidx]
+        xk = C_rcond @ (M.T @ z + prprod[full_idx])
+
+        # Save trajectory step:
+        x_surface[full_idx] = xk
+        if outside_ret_const is None:
+            x_surface[outside_ret_windows] = xa_surface[outside_ret_windows]
+        else:
+            x_surface[outside_ret_windows] = outside_ret_const
+        x[fm.idx_surface] = x_surface
         trajectory.append(x)
 
-        full_xk = np.zeros(len(x_surface))
-
-        for n in range(num_iter):
-            Dv = L_down_total / (1 - s * (xk[:nl] + xk[-2] * g_dir + xk[-1] * g_dif))
-            L = Dv.reshape((-1, 1)) * H
-            M = GIv.reshape((-1, 1)) * L
-            S = L.T @ M
-            C_rcond = np.linalg.inv(Sa_inv[winglintidx, :][:, winglintidx] + S)
-            z = meas[winidx] - r
-            xk = C_rcond @ (M.T @ z + prprod)
-
-            # Save trajectory step:
-            full_xk[winglintidx] = xk
-            if outside_ret_const is None:
-                full_xk[outside_ret_windows] = xa_surface[outside_ret_windows]
-            else:
-                full_xk[outside_ret_windows] = outside_ret_const
-            x[fm.idx_surface] = full_xk
-            trajectory.append(x)
-
-        if fm.surface.full_glint:
-            trajectory.append(trajectory[-1][-2] * g_dir)
-            trajectory.append(trajectory[-1][-1] * g_dif)
-
-    else:
-        outside_ret_windows = np.ones(len(fm.idx_surface), dtype=bool)
-        outside_ret_windows[winidx] = False
-        outside_ret_windows = np.where(outside_ret_windows)[0]
-        # Outside_ret_windows in this case any x_surface parameters that are not reflectances
-        for n in range(num_iter):
-            L_atm = fm.RT.get_L_atm(x_RT, geom)[winidx]
-            L_tot = fm.calc_rdn(x, geom)[winidx]
-
-            L_surf = (L_tot - L_atm) / x_surface[winidx]  # = Ldiag
-            L_surf[L_surf < 0] = 1e-9
-
-            # Match Jouni's convention
-            C = Seps  # C = 'meas_Cov' = Seps
-            L = dpotrf(C, 1)[0]
-            P = dpotri(L, 1)[0]
-            P_rpr = Sa_inv[winidx, :][:, winidx]
-            mu_rpr = xa_surface[winidx]
-
-            priorprod = P_rpr @ mu_rpr
-
-            P_tilde = ((L_surf * P).T * L_surf).T
-            P_rcond = P_rpr + P_tilde
-
-            LI_rcond = dpotrf(P_rcond)[0]
-            C_rcond = dpotri(LI_rcond)[0]
-
-            # Calculate AOE mean
-            mu = dsymv(
-                1, C_rcond, L_surf * dsymv(1, P, meas[winidx] - L_atm) + priorprod
-            )
-
-            full_mu = np.zeros(len(x_surface))
-            full_mu[winidx] = mu
-
-            # Calculate conditional prior mean to fill in
-            # xa_cond, Sa_cond = conditional_gaussian(xa_full, Sa, outside_ret_windows, winidx, mu)
-            # full_mu[outside_ret_windows] = xa_cond
-            if outside_ret_const is None:
-                full_mu[outside_ret_windows] = xa_surface[outside_ret_windows]
-            else:
-                full_mu[outside_ret_windows] = outside_ret_const
-
-            x[fm.idx_surface] = full_mu
-            trajectory.append(x)
+    # If we want to propogate the entire glint spectrum.
+    # Not currently implemented cleanly
+    if fm.RT.glint_model and fm.surface.full_glint:
+        trajectory.append(trajectory[-1][-2] * g_dir)
+        trajectory.append(trajectory[-1][-1] * g_dif)
 
     if diag_uncert:
         full_unc = np.ones(len(x))
-        if fm.RT.glint_model:
-            full_unc[winglintidx] = np.sqrt(np.diag(C_rcond))
-        else:
-            full_unc[winidx] = np.sqrt(np.diag(C_rcond))
+        full_unc[full_idx] = np.sqrt(np.diag(C_rcond))
+
         return trajectory, full_unc
     else:
         return trajectory, C_rcond
