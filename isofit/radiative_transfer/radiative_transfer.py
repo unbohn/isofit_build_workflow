@@ -409,6 +409,7 @@ class RadiativeTransfer:
         Ls,
         dLs_dsurface,
         geom: Geometry,
+        rho_ls: float = 0.02,
     ):
         # first the rdn at the current state vector
         rdn = self.calc_rdn(x_RT, rho_dir_dir, rho_dif_dir, Ls, geom)
@@ -441,8 +442,6 @@ class RadiativeTransfer:
         # including glint for water surfaces
         if self.glint_model:
             L_sky = x_surface[-2] * L_down_dir + x_surface[-1] * L_down_dif
-
-            rho_ls = 0.02  # fresnel reflectance factor (approx. 0.02 for nadir view)
             glint = rho_ls * (L_sky / L_down_tot)
         else:
             glint = np.zeros(rho_dir_dir.shape)
@@ -467,14 +466,20 @@ class RadiativeTransfer:
         )
 
         if self.glint_model:
+            # Direct glint term, 0s if no glint
+            g_dir = rho_ls * (L_down_dir / L_down_tot)
+            # Diffuse glint term, 0s if no glint
+            g_dif = rho_ls * (L_down_dif / L_down_tot)
             # K glint
             drdn_dgdd = (
                 L_down_dir
+                * g_dir
                 * (r["transm_up_dir"] + r["transm_up_dif"])
                 / (1.0 - s_alb * rho_direct_hemi)
             )
             drdn_dgdsf = (
                 L_down_dif
+                * g_dif
                 * (r["transm_up_dir"] + r["transm_up_dif"])
                 / (1.0 - s_alb * rho_direct_hemi)
             )
