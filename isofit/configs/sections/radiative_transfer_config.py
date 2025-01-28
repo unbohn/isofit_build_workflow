@@ -79,13 +79,6 @@ class RadiativeTransferEngineConfig(BaseConfigSection):
         self.treat_as_emissive = False
         """bool: Run the simulation in emission mode"""
 
-        self._topography_model_type = bool
-        self.topography_model = False
-        """
-        Flag to indicated whether to use a topographic-flux (topoflux)
-        implementation of the forward model.
-        """
-
         self._glint_model_type = bool
         self.glint_model = False
         """
@@ -94,11 +87,11 @@ class RadiativeTransferEngineConfig(BaseConfigSection):
         """
 
         self._rt_mode_type = str
-        self.rt_mode = None
+        self.rt_mode = "transm"
         """str: Radiative transfer mode of LUT simulations.
         'transm' for transmittances, 'rdn' for reflected radiance."""
 
-        self._lut_names_type = dict()
+        self._lut_names_type = dict
         self.lut_names = None
         """Dictionary: Names of the elements to run this radiative transfer element on.  Must be a subset
         of the keys in radiative_transfer->lut_grid.  If not specified, uses all keys from
@@ -212,7 +205,7 @@ class RadiativeTransferEngineConfig(BaseConfigSection):
         # Check that all input files exist
         for key in self._get_nontype_attributes():
             value = getattr(self, key)
-            if value is not None and key[-5:] == "_file" and key != "emulator_file":
+            if value and key[-5:] == "_file" and key != "emulator_file":
                 if os.path.isfile(value) is False:
                     errors.append(
                         "Config value radiative_transfer->{}: {} not found".format(
@@ -256,20 +249,31 @@ class RadiativeTransferEngineConfig(BaseConfigSection):
                 )
 
         files = [
-            self.earth_sun_distance_file,
-            self.irradiance_file,
             self.obs_file,
             self.aerosol_model_file,
             self.aerosol_template_file,
         ]
-        for f in files:
-            if f is not None:
-                if os.path.isfile(f) is False:
+        for file in files:
+            if file is not None and not os.path.isfile(file):
+                errors.append(
+                    f"Radiative transfer engine file not found on system: {file}"
+                )
+
+        if self.topography_model:
+            for rtm in self.radiative_transfer_engines:
+                if rtm.engine_name != "modtran":
                     errors.append(
-                        "Radiative transfer engine file not found on system: {}".format(
-                            self.earth_sun_distance_file
-                        )
+                        "All self.forward_model.radiative_transfer.radiative_transfer_engines"
+                        ' must be of type "modtran" if forward_model.topograph_model is'
+                        " set to True"
                     )
+                if rtm.multipart_transmittance is False:
+                    errors.append(
+                        "All self.forward_model.radiative_transfer.radiative_transfer_engines"
+                        " must have multipart_transmittance set as True if"
+                        " forward_model.topograph_model is set to True"
+                    )
+
         return errors
 
 

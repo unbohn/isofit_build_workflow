@@ -105,7 +105,6 @@ class RadiativeTransfer:
                 raise AttributeError(error)
 
         # If any engine is true, self is true
-        self.topography_model = any([rte.topography_model for rte in self.rt_engines])
         self.glint_model = any([rte.glint_model for rte in self.rt_engines])
 
         # The rest of the code relies on sorted order of the individual RT engines which cannot
@@ -138,9 +137,6 @@ class RadiativeTransfer:
         self.bval = np.array([x for x in config.unknowns.get_elements()[0]])
 
         self.solar_irr = np.concatenate([RT.solar_irr for RT in self.rt_engines])
-
-        # radiances along all optical paths
-        self.L_coupled = []
 
     def xa(self):
         """Pull the priors from each of the individual RTs."""
@@ -370,6 +366,9 @@ class RadiativeTransfer:
             L_dir_dif => downward direct * upward diffuse
             L_dif_dif => downward diffuse * upward diffuse
         """
+        # radiances along all optical paths
+        L_coupled = []
+
         if any(
             [
                 type(r[key]) != np.ndarray or len(r[key]) == 1
@@ -377,7 +376,7 @@ class RadiativeTransfer:
             ]
         ):
             # In case of the 1-component model, we cannot populate the coupling terms
-            self.L_coupled = [
+            L_coupled = [
                 0,
                 0,
                 0,
@@ -385,17 +384,17 @@ class RadiativeTransfer:
             ]
         else:
             for key in self.rt_engines[0].coupling_terms:
-                self.L_coupled.append(
+                L_coupled.append(
                     self.solar_irr * coszen / np.pi * r[key]
                     if self.rt_engines[0].rt_mode == "transm"
                     else r[key]
                 )
 
         # assigning coupled terms, unscaling and rescaling downward direct radiance by local solar zenith angle
-        L_dir_dir = self.L_coupled[0] / coszen * cos_i
-        L_dif_dir = self.L_coupled[1]
-        L_dir_dif = self.L_coupled[2] / coszen * cos_i
-        L_dif_dif = self.L_coupled[3]
+        L_dir_dir = L_coupled[0] / coszen * cos_i
+        L_dif_dir = L_coupled[1]
+        L_dir_dif = L_coupled[2] / coszen * cos_i
+        L_dif_dif = L_coupled[3]
 
         return L_dir_dir, L_dif_dir, L_dir_dif, L_dif_dif
 
@@ -438,7 +437,6 @@ class RadiativeTransfer:
         # to account for surface slope and aspect
         L_down_tot, L_down_dir, L_down_dif = self.get_L_down_transmitted(x_RT, geom)
         L_down_dir = L_down_dir / self.coszen * cos_i
-
         # including glint for water surfaces
         if self.glint_model:
             L_sky = x_surface[-2] * L_down_dir + x_surface[-1] * L_down_dif

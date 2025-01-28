@@ -3,57 +3,14 @@
 name: Test '$PYTHONPATH' installation
 
 on:
-  push:
-    branches: ["dev", "main"]
-  pull_request:
-    branches: ["dev", "main"]
+  workflow_call:
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+# concurrency:
+#   group: ${{ github.workflow }}-${{ github.ref }}
+#   cancel-in-progress: true
 
 jobs:
-  # Create a cache before matrix jobs
-  cache:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Cache Extras
-        id: cache-extras
-        uses: actions/cache@v3
-        with:
-          path: ~/.isofit
-          key: cache-extras
-
-      - if: ${{ steps.cache-extras.outputs.cache-hit != 'true' }}
-        uses: actions/checkout@v3
-
-      - if: ${{ steps.cache-extras.outputs.cache-hit != 'true' }}
-        name: Print concurrency group
-        run: echo '${{ github.workflow }}-${{ github.ref }}'
-
-      - if: ${{ steps.cache-extras.outputs.cache-hit != 'true' }}
-        name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v3
-        with:
-          python-version: '3.12'
-          cache: 'pip'
-
-      - if: ${{ steps.cache-extras.outputs.cache-hit != 'true' }}
-        name: Install ISOFIT
-        shell: bash
-        run: |
-          python3 -m pip install --editable ".[test]"
-
-      - if: ${{ steps.cache-extras.outputs.cache-hit != 'true' }}
-        name: Download extras
-        shell: bash
-        run: |
-          isofit download all
-          isofit build
-
   test:
-    needs: cache
-
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -68,7 +25,7 @@ jobs:
       # Pull the cache on every runner
       - name: Cached Extras
         id: cache-extras
-        uses: actions/cache@v3
+        uses: actions/cache/restore@v4
         with:
           path: ~/.isofit
           key: cache-extras

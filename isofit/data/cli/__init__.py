@@ -11,34 +11,50 @@ Modules = {
 }
 
 
-@cli.download.command(name="all")
-def download_all():
-    """\
-    Downloads all ISOFIT extra dependencies to the locations specified in the isofit.ini file using latest tags and versions.
+def runOnAll(func, **kwargs):
+    """
+    Executes a function of each loaded module
+
+    Parameters
+    ----------
+    func : str
+        Name of the function to invoke from the module
+    **kwargs : dict
+        Key-word arguments to pass to the function
     """
     pad = "=" * 16
 
     for i, module in enumerate(Modules.values()):
-        print(f"{pad} Beginning download {i+1} of {len(Modules)} {pad}")
-        module.download()
+        print(f"{pad} Beginning {func} {i+1} of {len(Modules)} {pad}")
+
+        getattr(module, func)(**kwargs)
+
         print()
 
-    print("Finished all downloads")
+    print("Finished all processes")
+
+
+@cli.download.command(name="all")
+@cli.check
+@cli.overwrite
+def download_all(**kwargs):
+    """\
+    Downloads all ISOFIT extra dependencies to the locations specified in the
+    isofit.ini file using latest tags and versions
+    """
+    if kwargs.get("overwrite"):
+        runOnAll("download", **kwargs)
+    else:
+        runOnAll("update", **kwargs)
 
 
 @cli.validate.command(name="all")
-def validate_all():
+def validate_all(**kwargs):
     """\
-    Validates all ISOFIT extra dependencies at the locations specified in the isofit.ini file.
+    Validates all ISOFIT extra dependencies at the locations specified in the
+    isofit.ini file as well as check for updates using latest tags and versions
     """
-    pad = "=" * 16
-
-    for i, module in enumerate(Modules.values()):
-        print(f"{pad} Validating {i+1} of {len(Modules)} {pad}")
-        module.validate()
-        print()
-
-    print("Finished all validations")
+    runOnAll("validate", **kwargs)
 
 
 def env_validate(keys, **kwargs):
@@ -51,6 +67,10 @@ def env_validate(keys, **kwargs):
         List of validator functions to call
     """
     error = kwargs.get("error", print)
+
+    # Turn off checking for updates when using this function by default
+    # This makes env.path less verbose
+    kwargs["checkForUpdate"] = kwargs.get("checkForUpdate", False)
 
     all_valid = True
     for key in keys:
