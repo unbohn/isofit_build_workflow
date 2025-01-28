@@ -452,11 +452,7 @@ class RadiativeTransfer:
         )
 
         # K surface reflectance
-        drdn_drfl = (
-            (L_down_dir + L_down_dif)
-            / (1.0 - s_alb * rho_direct_hemi)
-            * r["transm_up_dir"]
-        )
+        drdn_drfl = L_down_tot / (1.0 - s_alb * rho_direct_hemi) * r["transm_up_dir"]
 
         drdn_dLs = r["transm_up_dir"] + r["transm_up_dif"]
 

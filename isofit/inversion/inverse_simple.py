@@ -31,6 +31,7 @@ from isofit.core.common import (
     emissive_radiance,
     eps,
     get_refractive_index,
+    svd_inv,
     svd_inv_sqrt,
 )
 
@@ -246,6 +247,9 @@ def invert_analytical(
         x: MAP estimate of the mean
         S: diagonal conditional posterior covariance estimate
     """
+    from scipy.linalg.blas import dsymv
+    from scipy.linalg.lapack import dpotrf, dpotri
+
     # x = x0.copy()
     # x_surface, x_RT, x_instrument = fm.unpack(x)
     # Note, this will fail if x_instrument is populated
@@ -268,14 +272,7 @@ def invert_analytical(
         geom,
     )
     # x_alg contains [rfl_est, Ls_est, coeffs]
-
-    if fm.RT.glint_model:
-        x_surf = fm.surface.fit_params(x_alg[0], geom)
-        x[fm.idx_surface] = x_surf
-        # Initial guess for reflectance and glint parameters based on the algebraic inversion
-        # Glint initialization currently comes from instrument band at ~1020 nm
-    else:
-        x[fm.idx_surface] = x_alg[0]
+    x[fm.idx_surface] = fm.surface.fit_params(x_alg[0], geom)
 
     trajectory = []
 
@@ -310,12 +307,13 @@ def invert_analytical(
     # Define glint effect
     if fm.RT.glint_model:
         rho_ls = fm.RT.fresnel_rf(geom.observer_zenith)
+        # Direct glint term, 0s if no glint
+        g_dir = rho_ls * (L_down_dir / L_down_total)
+        # Diffuse glint term, 0s if no glint
+        g_dif = rho_ls * (L_down_dif / L_down_total)
     else:
-        rho_ls = 0
-    # Direct glint term, 0s if no glint
-    g_dir = rho_ls * (L_down_dir / L_down_total)
-    # Diffuse glint term, 0s if no glint
-    g_dif = rho_ls * (L_down_dif / L_down_total)
+        g_dir = 0
+        g_dif = 0
 
     # Propogate modeled spherical albedo
     s = rtm_quant["sphalb"]
@@ -326,14 +324,14 @@ def invert_analytical(
     nl = len(x_surface)
     H = np.zeros((len(L_down_total), nl))
     np.fill_diagonal(H, 1)
+
+    # Will only fill if using fm.surface == 'glint_model_surface'
     if fm.RT.glint_model:
         H[:, -2] = g_dir
         H[:, -1] = g_dif
 
-    # Get the inversion indices
-    full_idx = np.concatenate(
-        (winidx, fm.idx_surf_nonrfl), axis=0
-    )  # Include glint indices
+    # Get the inversion indices; Include glint indices if applicable
+    full_idx = np.concatenate((winidx, fm.idx_surf_nonrfl), axis=0)
     outside_ret_windows = np.ones(len(fm.idx_surface), dtype=bool)
     outside_ret_windows[full_idx] = False
     outside_ret_windows = np.where(outside_ret_windows)[0]
@@ -363,11 +361,19 @@ def invert_analytical(
         # Sample just the part of L we want to use for inversion
         L = L[winidx, :][:, full_idx]
 
-        M = GIv.reshape((-1, 1)) * L
-        S = L.T @ M
-        C_rcond = np.linalg.inv(Sa_inv[full_idx, :][:, full_idx] + S)
-        z = meas[winidx] - L_atm[winidx]
-        xk = C_rcond @ (M.T @ z + prprod[full_idx])
+        C = dpotrf(Seps, 1)[0]
+        P = dpotri(C, 1)[0]
+
+        P_tilde = ((L.T @ P) @ L).T
+        P_rcond = Sa_inv[full_idx, :][:, full_idx] + P_tilde
+
+        LI_rcond = dpotrf(P_rcond)[0]
+        C_rcond = dpotri(LI_rcond)[0]
+        xk = dsymv(
+            1,
+            C_rcond,
+            (L.T @ dsymv(1, P, meas[winidx] - L_atm[winidx]) + prprod[full_idx]),
+        )
 
         # Save trajectory step:
         x_surface[full_idx] = xk
