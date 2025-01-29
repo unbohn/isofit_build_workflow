@@ -278,57 +278,23 @@ def invert_analytical(
 
     x_surface, x_RT, x_instrument = fm.unpack(x)
 
+    # Measurement uncertainty
     Seps = fm.Seps(x, meas, geom)[winidx, :][:, winidx]
-    GIv = 1 / np.diag(Seps)
 
+    # Prior covariance
     Sa = fm.Sa(x, geom)
     Sa_surface = Sa[fm.idx_surface, :][:, fm.idx_surface]
     Sa_inv = svd_inv_sqrt(Sa_surface, hash_table, hash_size)[0]
 
+    # Prior mean
     xa_full = fm.xa(x, geom)
     xa_surface = xa_full[fm.idx_surface]
 
     # Product of the prior covariance and mean
     prprod = Sa_inv @ xa_surface
 
-    # Downwards irradiance terms
-    L_down_total, L_down_dir, L_down_dif = fm.RT.get_L_down_transmitted(x_RT, geom)
-
-    # Get rtm table
-    rtm_quant = fm.RT.get_shared_rtm_quantities(x_RT, geom)
-
-    # Coupled irradiance terms
-    cos_i = geom.cos_i if geom.cos_i is not None else coszen
-    L_dir_dir, L_dif_dir, L_dir_dif, L_dif_dif = fm.RT.get_L_coupled(
-        rtm_quant, fm.RT.coszen, cos_i
-    )
-    L_tot = L_dir_dir + L_dif_dir + L_dir_dif + L_dif_dif
-
-    # Define glint effect
-    if fm.RT.glint_model:
-        rho_ls = fm.RT.fresnel_rf(geom.observer_zenith)
-        # Direct glint term, 0s if no glint
-        g_dir = rho_ls * (L_down_dir / L_down_total)
-        # Diffuse glint term, 0s if no glint
-        g_dif = rho_ls * (L_down_dif / L_down_total)
-    else:
-        g_dir = 0
-        g_dif = 0
-
-    # Propogate modeled spherical albedo
-    s = rtm_quant["sphalb"]
-
     # Get path radiance
     L_atm = fm.RT.get_L_atm(x_RT, geom)
-
-    nl = len(x_surface)
-    H = np.zeros((len(L_down_total), nl))
-    np.fill_diagonal(H, 1)
-
-    # Will only fill if using fm.surface == 'glint_model_surface'
-    if fm.RT.glint_model:
-        H[:, -2] = g_dir
-        H[:, -1] = g_dif
 
     # Get the inversion indices; Include glint indices if applicable
     full_idx = np.concatenate((winidx, fm.idx_surf_nonrfl), axis=0)
@@ -339,27 +305,10 @@ def invert_analytical(
     # Save init state as x0
     trajectory.append(x)
     for n in range(num_iter):
-        Dv = L_tot / (
-            1
-            - (
-                s
-                * (
-                    x_surface[: len(L_down_total)]
-                    + x_surface[-2] * g_dir
-                    + x_surface[-1] * g_dif
-                )
-            )
-        )
-        # Set up L Matrix from Susiluoto, 2025
-        # This is very similar to the K matrix used for the surface
-        # derivative in the iterative solution.
-        # The numerators are different however. If the numerator
-        # should be L_down_total, the fm.K command can be used
-        # and glint terms are scaled by * g_dir (or g_dif) respectively.
-        L = Dv.reshape((-1, 1)) * H
-
-        # Sample just the part of L we want to use for inversion
-        L = L[winidx, :][:, full_idx]
+        # Surface portion of the full derivative matrix
+        K = fm.K(x, geom)[fm.idx_surf_rfl, :][:, fm.idx_surface]
+        # Just the wavelengths and states of interest
+        L = K[winidx, :][:, full_idx]
 
         C = dpotrf(Seps, 1)[0]
         P = dpotri(C, 1)[0]

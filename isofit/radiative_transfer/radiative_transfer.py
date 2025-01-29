@@ -184,7 +184,7 @@ class RadiativeTransfer:
         # ToDo: we need to think about if we want to obtain the background reflectance from the Geometry object
         #  or from the surface model, i.e., the same way as we do with the target pixel reflectance
         rho_dir_dif = geom.bg_rfl if geom.bg_rfl is not None else rho_dir_dir
-        rho_dif_dif = geom.bg_rfl if geom.bg_rfl is not None else rho_dir_dir
+        rho_dif_dif = geom.bg_rfl if geom.bg_rfl is not None else rho_dif_dir
 
         # Get needed rt quantities from LUT
         r = self.get_shared_rtm_quantities(x_RT, geom)
@@ -207,6 +207,7 @@ class RadiativeTransfer:
         if type(L_tot) != np.ndarray or len(L_tot) == 1:
             L_tot = self.get_L_down_transmitted(x_RT, geom)[0]
             # we assume rho_dir_dir = rho_dif_dir = rho_dir_dif = rho_dif_dif
+            rho_dif_dif = rho_dir_dir
             rho_dif_dif = rho_dir_dir
             # eliminate spherical albedo and one reflectance term from numerator if using 1-component model
             L_tot = L_tot / (s_alb * rho_dif_dif)
@@ -408,7 +409,6 @@ class RadiativeTransfer:
         Ls,
         dLs_dsurface,
         geom: Geometry,
-        rho_ls: float = 0.02,
     ):
         # first the rdn at the current state vector
         rdn = self.calc_rdn(x_RT, rho_dir_dir, rho_dif_dir, Ls, geom)
@@ -428,6 +428,12 @@ class RadiativeTransfer:
         # get needed rt quantities from LUT
         r = self.get_shared_rtm_quantities(x_RT, geom)
 
+        # Get coupled terms
+        L_dir_dir, L_dif_dir, L_dir_dif, L_dif_dif = self.get_L_coupled(
+            r, self.coszen, cos_i
+        )
+        L_total = L_dir_dir + L_dif_dir + L_dir_dif + L_dif_dif
+
         # atmospheric spherical albedo
         s_alb = r["sphalb"]
 
@@ -437,49 +443,31 @@ class RadiativeTransfer:
         # to account for surface slope and aspect
         L_down_tot, L_down_dir, L_down_dif = self.get_L_down_transmitted(x_RT, geom)
         L_down_dir = L_down_dir / self.coszen * cos_i
+
+        rho_ls = self.fresnel_rf(geom.observer_zenith)
         # including glint for water surfaces
-        if self.glint_model:
-            L_sky = x_surface[-2] * L_down_dir + x_surface[-1] * L_down_dif
-            glint = rho_ls * (L_sky / L_down_tot)
-        else:
-            glint = np.zeros(rho_dir_dir.shape)
 
-        # adjacency effects
-        rho_direct_hemi = (
-            geom.bg_rfl if geom.bg_rfl is not None else rho_dir_dir + glint
-        )
-
-        # K surface reflectance
-        drdn_drfl = L_down_tot / (1.0 - s_alb * rho_direct_hemi) * r["transm_up_dir"]
-
+        drdn_drfl = L_total / (1.0 - (s_alb * (rho_dif_dir))) ** 2
         drdn_dLs = r["transm_up_dir"] + r["transm_up_dif"]
 
         K_surface = (
             drdn_drfl[:, np.newaxis] * drfl_dsurface
             + drdn_dLs[:, np.newaxis] * dLs_dsurface
         )
-
         if self.glint_model:
             # Direct glint term, 0s if no glint
             g_dir = rho_ls * (L_down_dir / L_down_tot)
             # Diffuse glint term, 0s if no glint
             g_dif = rho_ls * (L_down_dif / L_down_tot)
-            # K glint
-            drdn_dgdd = (
-                L_down_dir
-                * g_dir
-                * (r["transm_up_dir"] + r["transm_up_dif"])
-                / (1.0 - s_alb * rho_direct_hemi)
-            )
-            drdn_dgdsf = (
-                L_down_dif
-                * g_dif
-                * (r["transm_up_dir"] + r["transm_up_dif"])
-                / (1.0 - s_alb * rho_direct_hemi)
+
+            drdn_dgdd = L_dir_dir + L_dir_dif
+            # Diffuse term
+            drdn_dgdsf = (L_total / (1.0 - (s_alb * (rho_dif_dir))) ** 2) - (
+                L_dir_dir + L_dir_dif
             )
 
-            K_surface[:, -2] = drdn_dgdd
-            K_surface[:, -1] = drdn_dgdsf
+            K_surface[:, -2] = g_dir * drdn_dgdd
+            K_surface[:, -1] = g_dif * drdn_dgdsf
 
         return K_RT, K_surface
 
