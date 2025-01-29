@@ -444,17 +444,33 @@ class RadiativeTransfer:
         L_down_tot, L_down_dir, L_down_dif = self.get_L_down_transmitted(x_RT, geom)
         L_down_dir = L_down_dir / self.coszen * cos_i
 
-        rho_ls = self.fresnel_rf(geom.observer_zenith)
-        # including glint for water surfaces
+        # Alternative form of derivative
+        # drdn_drfl = L_total / (1.0 - (s_alb * (rho_dif_dir))) ** 2
 
-        drdn_drfl = L_total / (1.0 - (s_alb * (rho_dif_dir))) ** 2
-        drdn_dLs = r["transm_up_dir"] + r["transm_up_dif"]
+        # upward transmittance
+        t_total_up = r["transm_up_dir"] + r["transm_up_dif"]
+
+        # K surface reflectance
+        drho_scaled_for_multiscattering_drfl = 1.0 / (1.0 - s_alb * rho_dir_dir) ** 2
+
+        if type(t_total_up) != np.ndarray or len(t_total_up) == 1:
+            drdn_drfl = L_down_tot * drho_scaled_for_multiscattering_drfl
+        else:
+            drdn_drfl = (
+                (L_down_dir + L_down_dif)
+                * drho_scaled_for_multiscattering_drfl
+                * t_total_up
+            )
+
+        drdn_dLs = t_total_up
 
         K_surface = (
             drdn_drfl[:, np.newaxis] * drfl_dsurface
             + drdn_dLs[:, np.newaxis] * dLs_dsurface
         )
         if self.glint_model:
+            # Calulate the fresnel reflectance factor
+            rho_ls = self.fresnel_rf(geom.observer_zenith)
             # Direct glint term, 0s if no glint
             g_dir = rho_ls * (L_down_dir / L_down_tot)
             # Diffuse glint term, 0s if no glint
