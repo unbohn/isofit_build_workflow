@@ -437,6 +437,9 @@ class RadiativeTransfer:
         L_down_tot, L_down_dir, L_down_dif = self.get_L_down_transmitted(x_RT, geom)
         L_down_dir = L_down_dir / self.coszen * cos_i
 
+        # Alternative form of derivative
+        # drdn_drfl = L_total / (1.0 - (s_alb * (rho_dif_dir))) ** 2
+
         # upward transmittance
         t_total_up = r["transm_up_dir"] + r["transm_up_dif"]
 
@@ -458,22 +461,22 @@ class RadiativeTransfer:
             drdn_drfl[:, np.newaxis] * drfl_dsurface
             + drdn_dLs[:, np.newaxis] * dLs_dsurface
         )
-
         if self.glint_model:
-            # K glint
-            drdn_dgdd = (
-                L_down_dir
-                * (r["transm_up_dir"] + r["transm_up_dif"])
-                / (1.0 - s_alb * rho_dir_dir)
-            )
-            drdn_dgdsf = (
-                L_down_dif
-                * (r["transm_up_dir"] + r["transm_up_dif"])
-                / (1.0 - s_alb * rho_dif_dir)
+            # Calulate the fresnel reflectance factor
+            rho_ls = self.fresnel_rf(geom.observer_zenith)
+            # Direct glint term, 0s if no glint
+            g_dir = rho_ls * (L_down_dir / L_down_tot)
+            # Diffuse glint term, 0s if no glint
+            g_dif = rho_ls * (L_down_dif / L_down_tot)
+
+            drdn_dgdd = L_dir_dir + L_dir_dif
+            # Diffuse term
+            drdn_dgdsf = (L_total / (1.0 - (s_alb * (rho_dif_dir))) ** 2) - (
+                L_dir_dir + L_dir_dif
             )
 
-            K_surface[:, -2] = drdn_dgdd
-            K_surface[:, -1] = drdn_dgdsf
+            K_surface[:, -2] = g_dir * drdn_dgdd
+            K_surface[:, -1] = g_dif * drdn_dgdsf
 
         return K_RT, K_surface
 
