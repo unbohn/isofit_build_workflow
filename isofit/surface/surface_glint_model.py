@@ -98,12 +98,12 @@ class GlintModelSurface(MultiComponentSurface):
         x[self.glint_ind + 1] = g_dsf_est  # SKY_GLINT g_dsf
         return x
 
-    def calc_rfl(self, x_surface, geom, L_down_dir=None, L_down_dif=None):
+    def calc_rfl(self, x_surface, geom, L_dir=None, L_dif=None):
         """Direct and diffuse Reflectance (includes sun and sky glint)."""
-
-        rho_ls = 0.02  # fresnel reflectance factor (approx. 0.02 for nadir view)
-        sun_glint = rho_ls * (x_surface[-2] * L_down_dir / (L_down_dir + L_down_dif))
-        sky_glint = rho_ls * (x_surface[-1] * L_down_dif / (L_down_dir + L_down_dif))
+        # fresnel reflectance factor (approx. 0.02 for nadir view)
+        rho_ls = self.fresnel_rf(geom.observer_zenith)
+        sun_glint = rho_ls * (x_surface[-2] * L_dir / (L_dir + L_dif))
+        sky_glint = rho_ls * (x_surface[-1] * L_dif / (L_dir + L_dif))
 
         rho_dir_dir = self.calc_lamb(x_surface, geom) + sun_glint
         rho_dif_dir = self.calc_lamb(x_surface, geom) + sky_glint
@@ -113,9 +113,10 @@ class GlintModelSurface(MultiComponentSurface):
     def drfl_dsurface(self, x_surface, geom):
         """Partial derivative of reflectance with respect to state vector,
         calculated at x_surface."""
-
+        rho_ls = self.fresnel_rf(geom.observer_zenith)
         drfl = self.dlamb_dsurface(x_surface, geom)
         drfl[:, self.glint_ind :] = 0
+
         return drfl
 
     def dLs_dsurface(self, x_surface, geom):
@@ -132,3 +133,25 @@ class GlintModelSurface(MultiComponentSurface):
         return MultiComponentSurface.summarize(
             self, x_surface, geom
         ) + " Sun Glint: %5.3f, Sky Glint: %5.3f" % (x_surface[-2], x_surface[-1])
+
+    @staticmethod
+    def fresnel_rf(vza):
+        """Calculates reflectance factor of sky radiance based on the
+        Fresnel equation for unpolarized light as a function of view zenith angle (vza).
+        """
+        if vza > 0.0:
+            n_w = 1.33  # refractive index of water
+            theta = np.deg2rad(vza)
+
+            # calculate angle of refraction using Snell′s law
+            theta_i = np.arcsin(np.sin(theta) / n_w)
+
+            # reflectance factor of sky radiance based on the Fresnel equation for unpolarized light
+            rho_ls = 0.5 * np.abs(
+                ((np.sin(theta - theta_i) ** 2) / (np.sin(theta + theta_i) ** 2))
+                + ((np.tan(theta - theta_i) ** 2) / (np.tan(theta + theta_i) ** 2))
+            )
+        else:
+            rho_ls = 0.02  # the reflectance factor converges to 0.02 for view angles equal to 0.0°
+
+        return rho_ls

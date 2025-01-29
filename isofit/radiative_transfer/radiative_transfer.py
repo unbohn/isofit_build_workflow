@@ -184,7 +184,7 @@ class RadiativeTransfer:
         # ToDo: we need to think about if we want to obtain the background reflectance from the Geometry object
         #  or from the surface model, i.e., the same way as we do with the target pixel reflectance
         rho_dir_dif = geom.bg_rfl if geom.bg_rfl is not None else rho_dir_dir
-        rho_dif_dif = geom.bg_rfl if geom.bg_rfl is not None else rho_dir_dir
+        rho_dif_dif = geom.bg_rfl if geom.bg_rfl is not None else rho_dif_dir
 
         # Get needed rt quantities from LUT
         r = self.get_shared_rtm_quantities(x_RT, geom)
@@ -443,8 +443,11 @@ class RadiativeTransfer:
         # upward transmittance
         t_total_up = r["transm_up_dir"] + r["transm_up_dif"]
 
+        rho_dir_dif = geom.bg_rfl if geom.bg_rfl is not None else rho_dir_dir
+        rho_dif_dif = geom.bg_rfl if geom.bg_rfl is not None else rho_dif_dir
+
         # K surface reflectance
-        drho_scaled_for_multiscattering_drfl = 1.0 / (1.0 - s_alb * rho_dir_dir) ** 2
+        drho_scaled_for_multiscattering_drfl = 1.0 / (1.0 - s_alb * rho_dif_dif) ** 2
 
         if type(t_total_up) != np.ndarray or len(t_total_up) == 1:
             drdn_drfl = L_down_tot * drho_scaled_for_multiscattering_drfl
@@ -474,12 +477,9 @@ class RadiativeTransfer:
             )
             L_tot = L_dir_dir + L_dif_dir + L_dir_dif + L_dif_dif
 
-            # Calulate the fresnel reflectance factor
             rho_ls = self.fresnel_rf(geom.observer_zenith)
-            # Direct glint term, 0s if no glint
-            g_dir = rho_ls * (L_down_dir / L_down_tot)
-            # Diffuse glint term, 0s if no glint
-            g_dif = rho_ls * (L_down_dif / L_down_tot)
+            g_dir = rho_ls * (L_down_dir / L_down_tot)  # direct sky transmittance
+            g_dif = rho_ls * (L_down_dif / L_down_tot)  # diffuse sky transmittance
 
             # Use the coupled terms or not?
             # Direct term
@@ -487,11 +487,12 @@ class RadiativeTransfer:
             # drdn_dgdd = L_down_dir
 
             # Diffuse term
-            drdn_dgdsf = (L_tot / (1.0 - (s_alb * (rho_dif_dir))) ** 2) - drdn_dgdd
-            # drdn_dgdsf = (L_down_tot / (1.0 - (s_alb * (rho_dif_dir))) ** 2) - drdn_dgdd
-
+            drdn_dgdsf = (L_tot * drho_scaled_for_multiscattering_drfl) - drdn_dgdd
+            # drdn_dgdsf = (L_down_tot * drho_scaled_for_multistattering_drfl) - drdn_dgdd
             K_surface[:, -2] = g_dir * drdn_dgdd
             K_surface[:, -1] = g_dif * drdn_dgdsf
+            # K_surface[:, -2] = drdn_dgdd
+            # K_surface[:, -1] = drdn_dgdsf
 
         return K_RT, K_surface
 

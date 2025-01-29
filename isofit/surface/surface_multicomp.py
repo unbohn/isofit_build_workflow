@@ -183,7 +183,7 @@ class MultiComponentSurface(Surface):
             )
         return x_surface
 
-    def calc_rfl(self, x_surface, geom, L_down_dir=None, L_down_dif=None):
+    def calc_rfl(self, x_surface, geom, L_dir=None, L_dif=None, L_total=None):
         """Non-Lambertian reflectance."""
 
         # ToDo: Future use of calc_rfl() is to return a direct and diffuse surface reflectance quantity.
