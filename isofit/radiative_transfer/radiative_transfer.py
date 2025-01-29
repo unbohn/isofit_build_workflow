@@ -462,6 +462,18 @@ class RadiativeTransfer:
             + drdn_dLs[:, np.newaxis] * dLs_dsurface
         )
         if self.glint_model:
+            # If we want to use the coupled terms we have to make these checks
+            coszen = (
+                np.cos(np.deg2rad(geom.solar_zenith))
+                if np.isnan(self.coszen)
+                else self.coszen
+            )
+            cos_i = geom.cos_i if geom.cos_i is not None else coszen
+            L_dir_dir, L_dif_dir, L_dir_dif, L_dif_dif = self.get_L_coupled(
+                r, coszen, cos_i
+            )
+            L_tot = L_dir_dir + L_dif_dir + L_dir_dif + L_dif_dif
+
             # Calulate the fresnel reflectance factor
             rho_ls = self.fresnel_rf(geom.observer_zenith)
             # Direct glint term, 0s if no glint
@@ -469,11 +481,14 @@ class RadiativeTransfer:
             # Diffuse glint term, 0s if no glint
             g_dif = rho_ls * (L_down_dif / L_down_tot)
 
+            # Use the coupled terms or not?
+            # Direct term
             drdn_dgdd = L_dir_dir + L_dir_dif
+            # drdn_dgdd = L_down_dir
+
             # Diffuse term
-            drdn_dgdsf = (L_total / (1.0 - (s_alb * (rho_dif_dir))) ** 2) - (
-                L_dir_dir + L_dir_dif
-            )
+            drdn_dgdsf = (L_tot / (1.0 - (s_alb * (rho_dif_dir))) ** 2) - drdn_dgdd
+            # drdn_dgdsf = (L_down_tot / (1.0 - (s_alb * (rho_dif_dir))) ** 2) - drdn_dgdd
 
             K_surface[:, -2] = g_dir * drdn_dgdd
             K_surface[:, -1] = g_dif * drdn_dgdsf
