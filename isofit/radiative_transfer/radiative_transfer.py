@@ -519,28 +519,6 @@ class RadiativeTransfer:
         Kb_RT = np.array(Kb_RT).T
         return Kb_RT
 
-    @staticmethod
-    def fresnel_rf(vza):
-        """Calculates reflectance factor of sky radiance based on the
-        Fresnel equation for unpolarized light as a function of view zenith angle (vza).
-        """
-        if vza > 0.0:
-            n_w = 1.33  # refractive index of water
-            theta = np.deg2rad(vza)
-
-            # calculate angle of refraction using Snell′s law
-            theta_i = np.arcsin(np.sin(theta) / n_w)
-
-            # reflectance factor of sky radiance based on the Fresnel equation for unpolarized light
-            rho_ls = 0.5 * np.abs(
-                ((np.sin(theta - theta_i) ** 2) / (np.sin(theta + theta_i) ** 2))
-                + ((np.tan(theta - theta_i) ** 2) / (np.tan(theta + theta_i) ** 2))
-            )
-        else:
-            rho_ls = 0.02  # the reflectance factor converges to 0.02 for view angles equal to 0.0°
-
-        return rho_ls
-
     def summarize(self, x_RT, geom):
         ret = []
         for RT in self.rt_engines:

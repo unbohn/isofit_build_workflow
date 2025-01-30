@@ -115,7 +115,6 @@ class GlintModelSurface(MultiComponentSurface):
         calculated at x_surface."""
         rho_ls = self.fresnel_rf(geom.observer_zenith)
         drfl = self.dlamb_dsurface(x_surface, geom)
-        rho_ls = self.fresnel_rf(geom.observer_zenith)
 
         # direct sky transmittance
         g_dir = rho_ls * (L_down_dir / (L_down_dir + L_down_dif))
