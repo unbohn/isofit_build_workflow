@@ -196,7 +196,7 @@ class MultiComponentSurface(Surface):
 
         return x_surface[self.idx_lamb]
 
-    def drfl_dsurface(self, x_surface, geom):
+    def drfl_dsurface(self, x_surface, geom, L_dir=None, L_dif=None):
         """Partial derivative of reflectance with respect to state vector,
         calculated at x_surface."""
 

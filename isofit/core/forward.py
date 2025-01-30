@@ -260,7 +260,9 @@ class ForwardModel:
         rho_dir_dir, rho_dif_dir = self.surface.calc_rfl(
             x_surface, geom, L_down_dir, L_down_dif
         )
-        drfl_dsurface = self.surface.drfl_dsurface(x_surface, geom)
+        drfl_dsurface = self.surface.drfl_dsurface(
+            x_surface, geom, L_down_dir, L_down_dif
+        )
         rho_dir_dir_hi = self.upsample(self.surface.wl, rho_dir_dir)
         rho_dif_dir_hi = self.upsample(self.surface.wl, rho_dif_dir)
         drfl_dsurface_hi = self.upsample(self.surface.wl, drfl_dsurface.T).T

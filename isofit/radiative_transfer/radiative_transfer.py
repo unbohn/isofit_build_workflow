@@ -445,7 +445,6 @@ class RadiativeTransfer:
 
         rho_dir_dif = geom.bg_rfl if geom.bg_rfl is not None else rho_dir_dir
         rho_dif_dif = geom.bg_rfl if geom.bg_rfl is not None else rho_dif_dir
-
         # K surface reflectance
         drho_scaled_for_multiscattering_drfl = 1.0 / (1.0 - s_alb * rho_dif_dif) ** 2
 
@@ -454,45 +453,35 @@ class RadiativeTransfer:
         else:
             drdn_drfl = (
                 (L_down_dir + L_down_dif)
-                * drho_scaled_for_multiscattering_drfl
                 * t_total_up
+                * drho_scaled_for_multiscattering_drfl
             )
 
         drdn_dLs = t_total_up
 
-        K_surface = (
-            drdn_drfl[:, np.newaxis] * drfl_dsurface
-            + drdn_dLs[:, np.newaxis] * dLs_dsurface
-        )
+        # Initialize the d-matrix of size (# wavelength * # surface states)
+        # Need to check if self.wl is a stable place to pull this from
+        drdn_dsurface = np.eye(len(L_down_tot), len(x_surface))
+        drdn_dsurface = drdn_drfl[:, np.newaxis] * drdn_dsurface
         if self.glint_model:
-            # If we want to use the coupled terms we have to make these checks
-            coszen = (
-                np.cos(np.deg2rad(geom.solar_zenith))
-                if np.isnan(self.coszen)
-                else self.coszen
-            )
-            cos_i = geom.cos_i if geom.cos_i is not None else coszen
-            L_dir_dir, L_dif_dir, L_dir_dif, L_dif_dif = self.get_L_coupled(
-                r, coszen, cos_i
-            )
-            L_tot = L_dir_dir + L_dif_dir + L_dir_dif + L_dif_dif
-
-            rho_ls = self.fresnel_rf(geom.observer_zenith)
-            g_dir = rho_ls * (L_down_dir / L_down_tot)  # direct sky transmittance
-            g_dif = rho_ls * (L_down_dif / L_down_tot)  # diffuse sky transmittance
-
-            # Use the coupled terms or not?
             # Direct term
-            drdn_dgdd = L_dir_dir + L_dir_dif
-            # drdn_dgdd = L_down_dir
+            # drdn_dgdd = L_dir_dir + L_dir_dif
+            drdn_dgdd = L_down_dir
 
             # Diffuse term
-            drdn_dgdsf = (L_tot * drho_scaled_for_multiscattering_drfl) - drdn_dgdd
-            # drdn_dgdsf = (L_down_tot * drho_scaled_for_multistattering_drfl) - drdn_dgdd
-            K_surface[:, -2] = g_dir * drdn_dgdd
-            K_surface[:, -1] = g_dif * drdn_dgdsf
-            # K_surface[:, -2] = drdn_dgdd
-            # K_surface[:, -1] = drdn_dgdsf
+            drdn_dgdsf = (
+                (L_down_dir + L_down_dif)
+                * t_total_up
+                * drho_scaled_for_multiscattering_drfl
+            ) - drdn_dgdd
+
+            drdn_dsurface[:, -2] = drdn_dgdd
+            drdn_dsurface[:, -1] = drdn_dgdsf
+
+        drdn_dsurface = drdn_dsurface * drfl_dsurface
+        drdn_dLs = drdn_dLs[:, np.newaxis] * dLs_dsurface
+
+        K_surface = np.add(drdn_dsurface, drdn_dLs)
 
         return K_RT, K_surface
 
