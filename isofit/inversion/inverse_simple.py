@@ -334,6 +334,7 @@ def invert_analytical(
 
     # If we want to propogate the entire glint spectrum.
     # Not currently implemented cleanly
+    # Trajectory will alternate, state, g_dir * sun, g_dif * sky
     if fm.RT.glint_model and fm.surface.full_glint:
         trajectory.append(trajectory[-1][-2] * g_dir)
         trajectory.append(trajectory[-1][-1] * g_dif)

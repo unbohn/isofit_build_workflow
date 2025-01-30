@@ -98,19 +98,19 @@ class GlintModelSurface(MultiComponentSurface):
         x[self.glint_ind + 1] = g_dsf_est  # SKY_GLINT g_dsf
         return x
 
-    def calc_rfl(self, x_surface, geom, L_dir=None, L_dif=None):
+    def calc_rfl(self, x_surface, geom, L_down_dir=None, L_down_dif=None):
         """Direct and diffuse Reflectance (includes sun and sky glint)."""
         # fresnel reflectance factor (approx. 0.02 for nadir view)
         rho_ls = self.fresnel_rf(geom.observer_zenith)
-        sun_glint = rho_ls * (x_surface[-2] * L_dir / (L_dir + L_dif))
-        sky_glint = rho_ls * (x_surface[-1] * L_dif / (L_dir + L_dif))
+        sun_glint = rho_ls * (x_surface[-2] * L_down_dir / (L_down_dir + L_down_dif))
+        sky_glint = rho_ls * (x_surface[-1] * L_down_dif / (L_down_dir + L_down_dif))
 
         rho_dir_dir = self.calc_lamb(x_surface, geom) + sun_glint
         rho_dif_dir = self.calc_lamb(x_surface, geom) + sky_glint
 
         return rho_dir_dir, rho_dif_dir
 
-    def drfl_dsurface(self, x_surface, geom, L_dir=None, L_dif=None):
+    def drfl_dsurface(self, x_surface, geom, L_down_dir=None, L_down_dif=None):
         """Partial derivative of reflectance with respect to state vector,
         calculated at x_surface."""
         rho_ls = self.fresnel_rf(geom.observer_zenith)
@@ -118,9 +118,9 @@ class GlintModelSurface(MultiComponentSurface):
         rho_ls = self.fresnel_rf(geom.observer_zenith)
 
         # direct sky transmittance
-        g_dir = rho_ls * (L_dir / (L_dir + L_dif))
+        g_dir = rho_ls * (L_down_dir / (L_down_dir + L_down_dif))
         # diffuse sky transmittance
-        g_dif = rho_ls * (L_dif / (L_dir + L_dif))
+        g_dif = rho_ls * (L_down_dif / (L_down_dir + L_down_dif))
 
         # Sun glint derivative
         drfl[:, self.glint_ind] = g_dir

@@ -460,12 +460,14 @@ class RadiativeTransfer:
         drdn_dLs = t_total_up
 
         # Initialize the d-matrix of size (# wavelength * # surface states)
-        # Need to check if self.wl is a stable place to pull this from
         drdn_dsurface = np.eye(len(L_down_tot), len(x_surface))
         drdn_dsurface = drdn_drfl[:, np.newaxis] * drdn_dsurface
+
+        # TODO important to find a wa to abstract this s.t. we don't need to
+        # explicitely propogate both drdn_drfl and drdn_dglint here?
+        # Won't scale easily with statevector elements
         if self.glint_model:
             # Direct term
-            # drdn_dgdd = L_dir_dir + L_dir_dif
             drdn_dgdd = L_down_dir
 
             # Diffuse term
