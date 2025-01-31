@@ -443,8 +443,7 @@ class RadiativeTransfer:
         # upward transmittance
         t_total_up = r["transm_up_dir"] + r["transm_up_dif"]
 
-        rho_dir_dif = geom.bg_rfl if geom.bg_rfl is not None else rho_dir_dir
-        rho_dif_dif = geom.bg_rfl if geom.bg_rfl is not None else rho_dif_dir
+        rho_dif_dif = geom.bg_rfl if geom.bg_rfl else rho_dif_dir
         # K surface reflectance
         drho_scaled_for_multiscattering_drfl = 1.0 / (1.0 - s_alb * rho_dif_dif) ** 2
 

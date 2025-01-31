@@ -189,6 +189,8 @@ def analytical_line(
             rdn_file,
             loc_file,
             obs_file,
+            subs_state_file,
+            lbl_file,
             loglevel,
             logfile,
         )
@@ -224,10 +226,10 @@ class Worker(object):
         rdn_file: str,
         loc_file: str,
         obs_file: str,
+        subs_state_file: str,
+        lbl_file: str,
         loglevel: str,
         logfile: str,
-        subs_state_file: str = None,
-        lbl_file: str = None,
     ):
         """
         Worker class to help run a subset of spectra.
@@ -261,12 +263,10 @@ class Worker(object):
         self.obs_file = obs_file
         self.analytical_state_file = analytical_state_file
         self.analytical_state_unc_file = analytical_state_unc_file
-        if subs_state_file is not None and lbl_file is not None:
-            self.subs_state_file = subs_state_file
-            self.lbl_file = lbl_file
-        else:
-            self.subs_state_file = None
-            self.lbl_file = None
+
+        # Can't see any reason to leave these as optional
+        self.subs_state_file = subs_state_file
+        self.lbl_file = lbl_file
 
         if config.input.radiometry_correction_file is not None:
             self.radiance_correction, wl = load_spectrum(
@@ -285,6 +285,10 @@ class Worker(object):
         rt_state = envi.open(envi_header(self.RT_state_file)).open_memmap(
             interleave="bip"
         )
+        subs_state = envi.open(envi_header(self.subs_state_file)).open_memmap(
+            interleave="bip"
+        )
+        lbl = envi.open(envi_header(self.lbl_file)).open_memmap(interleave="bil")
 
         start_line, stop_line = startstop
         output_state = (
@@ -312,15 +316,25 @@ class Worker(object):
                     meas *= self.radiance_correction
                 if np.all(meas < 0):
                     continue
-                x_RT = rt_state[r, c, self.fm.idx_RT - len(self.fm.idx_surface)]
-                geom = Geometry(obs=obs[r, c, :], loc=loc[r, c, :], esd=esd)
 
+                geom = Geometry(obs=obs[r, c, :], loc=loc[r, c, :], esd=esd)
+                # Atmospheric state comes from the atm_interpolated file
+                x_RT = rt_state[r, c, self.fm.idx_RT - len(self.fm.idx_surface)]
+
+                # Flat file - lbl lines up with row
+                superpixel_state = subs_state[lbl[r, c, 0], 0, self.fm.idx_surface]
+
+                # Set the background reflectance as the superpixel_rho
+                geom.bg_rfl = superpixel_state[self.fm.idx_surf_rfl]
+
+                # Concatenate full statevector to use for initialization
+                x0 = np.concatenate([superpixel_state, x_RT])
                 states, unc = invert_analytical(
                     self.iv.fm,
                     self.iv.winidx,
                     meas,
                     geom,
-                    x_RT,
+                    x0,
                     1,
                     self.hash_table,
                     self.hash_size,

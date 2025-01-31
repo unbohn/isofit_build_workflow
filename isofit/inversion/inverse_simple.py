@@ -221,7 +221,7 @@ def invert_analytical(
     winidx: np.array,
     meas: np.array,
     geom: Geometry,
-    x_RT: np.array,
+    x0: np.array,
     num_iter: int = 1,
     hash_table: OrderedDict = None,
     hash_size: int = None,
@@ -236,7 +236,8 @@ def invert_analytical(
         winidx: indices of surface components of state vector (to be solved)
         meas: a one-D numpy vector of radiance in uW/nm/sr/cm2
         geom: geometry object corresponding to given measurement
-        x_RT: the radiative transfer state variables
+        x0: the initialization state including surface from the superpixel
+            and the the atm from the smoothed atmosphere.
         num_iter: number of interations to run through
         hash_table: a hash table to use locally
         hash_size: max size of given hash table
@@ -258,23 +259,7 @@ def invert_analytical(
             " indexing"
         )
 
-    x = np.zeros(fm.nstate)
-    x[fm.idx_RT] = x_RT
-    x_alg = invert_algebraic(
-        fm.surface,
-        fm.RT,
-        fm.instrument,
-        x[fm.idx_surface],
-        x_RT,
-        x[fm.idx_instrument],
-        meas,
-        geom,
-    )
-    # x_alg contains [rfl_est, Ls_est, coeffs]
-    x[fm.idx_surface] = fm.surface.fit_params(x_alg[0], geom)
-
-    trajectory = []
-
+    x = np.copy(x0)
     x_surface, x_RT, x_instrument = fm.unpack(x)
 
     # Measurement uncertainty
@@ -289,10 +274,10 @@ def invert_analytical(
     xa_full = fm.xa(x, geom)
     xa_surface = xa_full[fm.idx_surface]
 
-    # Product of the prior covariance and mean
+    # Save the product of the prior covariance and mean
     prprod = Sa_inv @ xa_surface
 
-    # Get path radiance
+    # Path radiance
     L_atm = fm.RT.get_L_atm(x_RT, geom)
 
     # Get the inversion indices; Include glint indices if applicable
@@ -302,6 +287,7 @@ def invert_analytical(
     outside_ret_windows = np.where(outside_ret_windows)[0]
 
     # Save init state as x0
+    trajectory = []
     trajectory.append(x)
     for n in range(num_iter):
         # Surface portion of the full derivative matrix
