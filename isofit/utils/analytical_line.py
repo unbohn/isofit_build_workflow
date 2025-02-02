@@ -145,6 +145,7 @@ def analytical_line(
 
     outside_ret_windows = np.zeros(len(fm.surface.idx_lamb), dtype=int)
     outside_ret_windows[iv.winidx] = 1
+    bbl = np.concatenate([outside_ret_windows, [1 for i in fm.idx_surf_nonrfl]])
     output_metadata["bbl"] = "{" + ",".join([str(x) for x in outside_ret_windows]) + "}"
 
     if "emit pge input files" in list(output_metadata.keys()):
@@ -288,7 +289,7 @@ class Worker(object):
         subs_state = envi.open(envi_header(self.subs_state_file)).open_memmap(
             interleave="bip"
         )
-        lbl = envi.open(envi_header(self.lbl_file)).open_memmap(interleave="bil")
+        lbl = envi.open(envi_header(self.lbl_file)).open_memmap(interleave="bip")
 
         start_line, stop_line = startstop
         output_state = (
@@ -322,7 +323,7 @@ class Worker(object):
                 x_RT = rt_state[r, c, self.fm.idx_RT - len(self.fm.idx_surface)]
 
                 # Flat file - lbl lines up with row
-                superpixel_state = subs_state[lbl[r, c, 0], 0, self.fm.idx_surface]
+                superpixel_state = subs_state[int(lbl[r, c, 0]), 0, self.fm.idx_surface]
 
                 # Set the background reflectance as the superpixel_rho
                 geom.bg_rfl = superpixel_state[self.fm.idx_surf_rfl]

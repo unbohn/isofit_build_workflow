@@ -188,8 +188,13 @@ class RadiativeTransfer:
         # Adjacency effects
         # ToDo: we need to think about if we want to obtain the background reflectance from the Geometry object
         #  or from the surface model, i.e., the same way as we do with the target pixel reflectance
-        rho_dir_dif = geom.bg_rfl if geom.bg_rfl is not None else rho_dir_dir
-        rho_dif_dif = geom.bg_rfl if geom.bg_rfl is not None else rho_dif_dir
+
+        rho_dir_dif = (
+            geom.bg_rfl if isinstance(geom.bg_rfl, np.ndarray) else rho_dir_dir
+        )
+        rho_dif_dif = (
+            geom.bg_rfl if isinstance(geom.bg_rfl, np.ndarray) else rho_dif_dir
+        )
 
         # Get needed rt quantities from LUT
         r = self.get_shared_rtm_quantities(x_RT, geom)
@@ -454,7 +459,10 @@ class RadiativeTransfer:
         # upward transmittance
         t_total_up = r["transm_up_dir"] + r["transm_up_dif"]
 
-        rho_dif_dif = geom.bg_rfl if geom.bg_rfl else rho_dif_dir
+        rho_dif_dif = (
+            geom.bg_rfl if isinstance(geom.bg_rfl, np.ndarray) else rho_dif_dir
+        )
+
         # K surface reflectance
         drho_scaled_for_multiscattering_drfl = 1.0 / (1.0 - s_alb * rho_dif_dif) ** 2
 
@@ -470,12 +478,12 @@ class RadiativeTransfer:
         drdn_dLs = t_total_up
 
         # Initialize the d-matrix of size (# wavelength * # surface states)
-        drdn_dsurface = np.eye(len(L_down_tot), len(x_surface))
+        drdn_dsurface = np.eye(len(self.wl), drfl_dsurface.shape[1])
         drdn_dsurface = drdn_drfl[:, np.newaxis] * drdn_dsurface
 
-        # TODO important to find a wa to abstract this s.t. we don't need to
-        # explicitely propogate both drdn_drfl and drdn_dglint here?
-        # Won't scale easily with statevector elements
+        # TODO is it important to find a way to abstract this?
+        # s.t. we don't need to explicitely propogate both drdn_drfl and drdn_dglint here?
+        # Currently won't scale easily with statevector elements.
         if self.glint_model:
             # Direct term
             drdn_dgdd = L_down_dir

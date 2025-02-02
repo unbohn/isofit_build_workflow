@@ -310,15 +310,21 @@ def invert_analytical(
             x_surface[outside_ret_windows] = xa_surface[outside_ret_windows]
         else:
             x_surface[outside_ret_windows] = outside_ret_const
+
         x[fm.idx_surface] = x_surface
         trajectory.append(x)
 
-    # If we want to propogate the entire glint spectrum.
-    # Not currently implemented cleanly
-    # Trajectory will alternate, state, g_dir * sun, g_dif * sky
-    if fm.RT.glint_model and fm.surface.full_glint:
-        trajectory.append(trajectory[-1][-2] * g_dir)
-        trajectory.append(trajectory[-1][-1] * g_dif)
+    # TODO
+    """
+    Not currently implemented cleanly if we want to propogate 
+    the entire glint spectrum. 
+    Commenting this out for now because we don't do this for the
+    full pixel inversions via inversion.invert
+    Need to clean up implementation.
+    """
+    # if fm.RT.glint_model and fm.surface.return_glint_spectrum:
+    #     trajectory.append(trajectory[-1][-2] * g_dir)
+    #     trajectory.append(trajectory[-1][-1] * g_dif)
 
     if diag_uncert:
         full_unc = np.ones(len(x))
