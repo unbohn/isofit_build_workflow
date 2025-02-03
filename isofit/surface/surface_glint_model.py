@@ -121,6 +121,7 @@ class GlintModelSurface(MultiComponentSurface):
         # diffuse sky transmittance
         g_dif = rho_ls * (L_down_dif / (L_down_dir + L_down_dif))
 
+        # TODO make the indexing better for the surface state elements
         # Sun glint derivative
         drfl[:, self.glint_ind] = g_dir
         # Sky glint derivative

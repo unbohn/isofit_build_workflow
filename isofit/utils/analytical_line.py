@@ -325,8 +325,9 @@ class Worker(object):
                 # Flat file - lbl lines up with row
                 superpixel_state = subs_state[int(lbl[r, c, 0]), 0, self.fm.idx_surface]
 
-                # Set the background reflectance as the superpixel_rho
-                geom.bg_rfl = superpixel_state[self.fm.idx_surf_rfl]
+                # Set the background reflectance as the superpixel_rhoo
+                # Does this lead to more accurate rfl?
+                # geom.bg_rfl = superpixel_state[self.fm.idx_surf_rfl]
 
                 # Concatenate full statevector to use for initialization
                 x0 = np.concatenate([superpixel_state, x_RT])

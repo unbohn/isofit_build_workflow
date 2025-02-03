@@ -257,21 +257,6 @@ def invert_analytical(
     x = np.copy(x0)
     x_surface, x_RT, x_instrument = fm.unpack(x)
 
-    # Measurement uncertainty
-    Seps = fm.Seps(x, meas, geom)[winidx, :][:, winidx]
-
-    # Prior covariance
-    Sa = fm.Sa(x, geom)
-    Sa_surface = Sa[fm.idx_surface, :][:, fm.idx_surface]
-    Sa_inv = svd_inv_sqrt(Sa_surface, hash_table, hash_size)[0]
-
-    # Prior mean
-    xa_full = fm.xa(x, geom)
-    xa_surface = xa_full[fm.idx_surface]
-
-    # Save the product of the prior covariance and mean
-    prprod = Sa_inv @ xa_surface
-
     # Path radiance
     L_atm = fm.RT.get_L_atm(x_RT, geom)
 
@@ -285,6 +270,20 @@ def invert_analytical(
     trajectory = []
     trajectory.append(x)
     for n in range(num_iter):
+        # Measurement uncertainty
+        Seps = fm.Seps(x, meas, geom)[winidx, :][:, winidx]
+
+        # Prior covariance
+        Sa = fm.Sa(x, geom)
+        Sa_surface = Sa[fm.idx_surface, :][:, fm.idx_surface]
+        Sa_inv = svd_inv_sqrt(Sa_surface, hash_table, hash_size)[0]
+
+        # Prior mean
+        xa_full = fm.xa(x, geom)
+        xa_surface = xa_full[fm.idx_surface]
+
+        # Save the product of the prior covariance and mean
+        prprod = Sa_inv @ xa_surface
         # Surface portion of the full derivative matrix
         K = fm.K(x, geom)[fm.idx_surf_rfl, :][:, fm.idx_surface]
         # Just the wavelengths and states of interest
