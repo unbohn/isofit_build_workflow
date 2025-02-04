@@ -144,6 +144,19 @@ class GlintModelSurface(MultiComponentSurface):
             self, x_surface, geom
         ) + " Sun Glint: %5.3f, Sky Glint: %5.3f" % (x_surface[-2], x_surface[-1])
 
+    def analytical_model(
+        self, x_surface, s, rho_dif_dir, L_down_dir, L_down_dif, t_total_up
+    ):
+        rho_ls = fm.surface.fresnel_rf(geom.observer_zenith)
+        # Direct component holding dif component constant
+        g_dir = rho_ls * (L_down_dir / (L_down_dir + L_down_dif))
+
+        H = super().analytical_model(
+            x_surface, s, rho_dif_dir, L_down_dir, L_down_dif, t_total_up
+        )
+        gam = L_down_dir * t_total_up * g_dir
+        H = np.append(H, gam, axis=1)
+
     @staticmethod
     def fresnel_rf(vza):
         """Calculates reflectance factor of sky radiance based on the

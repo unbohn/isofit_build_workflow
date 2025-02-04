@@ -260,15 +260,58 @@ def invert_analytical(
     # Path radiance
     L_atm = fm.RT.get_L_atm(x_RT, geom)
 
+    # Atmospheric spherical albedo and total trans up for radiance model
+    r = fm.RT.get_shared_rtm_quantities(x_RT, geom)
+    s = r["sphalb"]
+    t_total_up = r["transm_up_dir"] + r["transm_up_dif"]
+
+    # Has to use this function if cos_i is going to be incorporated
+    coszen, cos_i = fm.RT.check_coszen_and_cos_i(geom)
+    L_dir_dir, L_dif_dir, L_dir_dif, L_dif_dif = fm.RT.get_L_coupled(r, coszen, cos_i)
+    # Total radiance
+    L_tot = L_dir_dir + L_dif_dir + L_dir_dif + L_dif_dif
+
+    # Get the doward radiance. Should be stationary with fixed atm and geom
+    # Note: This function does not account for cos_i
+    L_down_tot, L_down_dir, L_down_dif = fm.RT.get_L_down_transmitted(x_RT, geom)
+
+    # Get the "background" reflectance from the initialized values
+    # This should be the same as the superpixel state
+    rho_dir_dir, rho_dif_dir = fm.surface.calc_rfl(
+        x_surface, geom, L_down_dir, L_down_dif
+    )
+    # background conditions
+    bg = s * rho_dif_dir
+
+    # Special case: 1-component model
+    if type(L_tot) != np.ndarray or len(L_tot) == 1:
+        # we assume rho_dir_dir = rho_dif_dir = rho_dir_dif = rho_dif_dif
+        rho_dif_dif = rho_dir_dir
+        # eliminate spherical albedo and one reflectance term from numerator if using 1-component model
+        L_tot = L_tot / bg
+
+    if fm.RT.glint_model:
+        sky_glint = x_surface[-1]
+        # Get glint contributions
+        rho_ls = fm.surface.fresnel_rf(geom.observer_zenith)
+        # Direct component
+        g_dir = rho_ls * (L_down_dir / (L_down_dir + L_down_dif))
+        # Diffuse component
+        g_dif = rho_ls * (L_down_dif / (L_down_dir + L_down_dif))
+
     # Get the inversion indices; Include glint indices if applicable
     full_idx = np.concatenate((winidx, fm.idx_surf_nonrfl), axis=0)
     outside_ret_windows = np.ones(len(fm.idx_surface), dtype=bool)
     outside_ret_windows[full_idx] = False
     outside_ret_windows = np.where(outside_ret_windows)[0]
+    if fm.RT.glint_model:
+        full_idx = full_idx[:-1]
 
     # Save init state as x0
-    trajectory = []
-    trajectory.append(x)
+    # trajectory = []
+    # trajectory.append(x)
+    trajectory = np.zeros((num_iter + 1, len(x)))
+    trajectory[0, :] = x
     for n in range(num_iter):
         # Measurement uncertainty
         Seps = fm.Seps(x, meas, geom)[winidx, :][:, winidx]
@@ -284,10 +327,37 @@ def invert_analytical(
 
         # Save the product of the prior covariance and mean
         prprod = Sa_inv @ xa_surface
-        # Surface portion of the full derivative matrix
-        K = fm.K(x, geom)[fm.idx_surf_rfl, :][:, fm.idx_surface]
+
+        # Construct the H matrix from:
+        # theta (rho portion)
+        # gam (sun glint portion)
+        # ep (sky glint portion)
+        x_surface, x_RT, x_instrument = fm.unpack(x)
+        if fm.RT.glint_model:
+            x_surface[-1] = sky_glint
+
+        Ls = fm.surface.calc_Ls(x_surface, geom)
+        rho_dir_dir, rho_dif_dir = fm.surface.calc_rfl(
+            x_surface, geom, L_down_dir, L_down_dif
+        )
+        f = s * rho_dif_dir
+
+        theta = L_tot + (L_tot * f)
+        # theta = L_tot / (1 - bg)
+        if fm.RT.glint_model:
+            H = np.eye(len(theta), len(x_surface) - 1)
+        else:
+            H = np.eye(len(theta), len(x_surface))
+        H = theta[:, np.newaxis] * H
+
+        if fm.RT.glint_model:
+            gam = (L_dir_dir + L_dir_dif) * g_dir
+            ep = ((L_dif_dir + L_dif_dif) * g_dif) - ((L_tot * f * g_dif) / (1 - f))
+            H[:, -1] = gam
+            # H[:, -1] = ep
+
         # Just the wavelengths and states of interest
-        L = K[winidx, :][:, full_idx]
+        L = H[winidx, :][:, full_idx]
 
         C = dpotrf(Seps, 1)[0]
         P = dpotri(C, 1)[0]
@@ -311,7 +381,7 @@ def invert_analytical(
             x_surface[outside_ret_windows] = outside_ret_const
 
         x[fm.idx_surface] = x_surface
-        trajectory.append(x)
+        trajectory[n + 1, :] = x
 
     # TODO
     """

@@ -84,7 +84,8 @@ class MultiComponentSurface(Surface):
         # Variables retrieved: each channel maps to a reflectance model parameter
         rmin, rmax = 0, 2.0
         self.statevec_names = ["RFL_%04i" % int(w) for w in self.wl]
-        self.bounds = [[rmin, rmax] for w in self.wl]
+        # self.bounds = [[rmin, rmax] for w in self.wl]
+        self.bounds = [[-0.1, 1.5] for w in self.wl]
         self.scale = [1.0 for w in self.wl]
         self.init = [0.15 * (rmax - rmin) + rmin for v in self.wl]
         self.idx_lamb = np.arange(self.n_wl)
@@ -235,3 +236,14 @@ class MultiComponentSurface(Surface):
         if len(x_surface) < 1:
             return ""
         return "Component: %i" % self.component(x_surface, geom)
+
+    def analytical_model(
+        self, x_surface, s, rho_dif_dir, L_down_dir, L_down_dif, t_total_up
+    ):
+        L_tot = (L_down_dir + L_down_dif) * t_total_up
+        theta = L_tot + (L_tot * s * rho_dif_dir)
+        # theta = L_tot / (1 - bg)
+        H = np.eye(len(theta), len(x_surface) - 1)
+        H = theta[:, np.newaxis] * H
+
+        return H

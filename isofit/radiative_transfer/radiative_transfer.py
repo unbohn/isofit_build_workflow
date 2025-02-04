@@ -445,35 +445,43 @@ class RadiativeTransfer:
 
         # atmospheric spherical albedo
         s_alb = r["sphalb"]
+        t_total_up = r["transm_up_dir"] + r["transm_up_dif"]
 
         # direct and diffuse downward radiance on the sun-to-surface path
         # note: currently, L_down_dir comes scaled by the TOA solar zenith angle,
         # thus, unscaling and rescaling by local solar zenith angle required
         # to account for surface slope and aspect
-        L_down_tot, L_down_dir, L_down_dif = self.get_L_down_transmitted(x_RT, geom)
-        L_down_dir = L_down_dir / coszen * cos_i
 
-        # Alternative form of derivative
-        # drdn_drfl = L_total / (1.0 - (s_alb * (rho_dif_dir))) ** 2
-
-        # upward transmittance
-        t_total_up = r["transm_up_dir"] + r["transm_up_dif"]
-
-        rho_dif_dif = (
-            geom.bg_rfl if isinstance(geom.bg_rfl, np.ndarray) else rho_dif_dir
+        L_dir_dir, L_dif_dir, L_dir_dif, L_dif_dif = self.get_L_coupled(
+            r, coszen, cos_i
         )
+        # Total radiance
+        L_tot = L_dir_dir + L_dif_dir + L_dir_dif + L_dif_dif
+
+        if type(L_tot) != np.ndarray or len(L_tot) == 1:
+            L_tot = self.get_L_down_transmitted(x_RT, geom)[0]
+            # we assume rho_dir_dir = rho_dif_dir = rho_dir_dif = rho_dif_dif
+            # eliminate spherical albedo and one reflectance term from numerator if using 1-component model
+            L_tot = L_tot / (s_alb * rho_dif_dir)
+
+        # rho_dif_dif = (
+        #     geom.bg_rfl if isinstance(geom.bg_rfl, np.ndarray) else rho_dif_dir
+        # )
 
         # K surface reflectance
-        drho_scaled_for_multiscattering_drfl = 1.0 / (1.0 - s_alb * rho_dif_dif) ** 2
+        drho_scaled_for_multiscattering_drfl = 1.0 / (
+            (1.0 - (s_alb * rho_dif_dir)) ** 2
+        )
 
-        if type(t_total_up) != np.ndarray or len(t_total_up) == 1:
-            drdn_drfl = L_down_tot * drho_scaled_for_multiscattering_drfl
-        else:
-            drdn_drfl = (
-                (L_down_dir + L_down_dif)
-                * t_total_up
-                * drho_scaled_for_multiscattering_drfl
-            )
+        # if type(t_total_up) != np.ndarray or len(t_total_up) == 1:
+        #     drdn_drfl = L_down_tot * drho_scaled_for_multiscattering_drfl
+        # else:
+        #     drdn_drfl = (
+        #         (L_down_dir + L_down_dif)
+        #         * t_total_up
+        #         * drho_scaled_for_multiscattering_drfl
+        #     )
+        drdn_drfl = L_tot * drho_scaled_for_multiscattering_drfl
 
         drdn_dLs = t_total_up
 
@@ -486,20 +494,17 @@ class RadiativeTransfer:
         # Currently won't scale easily with statevector elements.
         if self.glint_model:
             # Direct term
-            drdn_dgdd = L_down_dir
+            # Missing the coupling terms (no upwards)
+            drdn_dgdd = L_dir_dir + L_dir_dif
 
             # Diffuse term
-            drdn_dgdsf = (
-                (L_down_dir + L_down_dif)
-                * t_total_up
-                * drho_scaled_for_multiscattering_drfl
-            ) - drdn_dgdd
+            drdn_dgdsf = (L_tot * drho_scaled_for_multiscattering_drfl) - drdn_dgdd
 
             drdn_dsurface[:, -2] = drdn_dgdd
             drdn_dsurface[:, -1] = drdn_dgdsf
 
-        drdn_dsurface = drdn_dsurface * drfl_dsurface
-        drdn_dLs = drdn_dLs[:, np.newaxis] * dLs_dsurface
+        drdn_dsurface = np.multiply(drdn_dsurface, drfl_dsurface)
+        drdn_dLs = np.multiply(drdn_dLs[:, np.newaxis], dLs_dsurface)
 
         K_surface = np.add(drdn_dsurface, drdn_dLs)
 
