@@ -290,6 +290,7 @@ def invert_analytical(
         # eliminate spherical albedo and one reflectance term from numerator if using 1-component model
         L_tot = L_tot / bg
 
+    # TODO Try to abstract these binary to the surface module
     if fm.RT.glint_model:
         sky_glint = x_surface[-1]
         # Get glint contributions
@@ -304,6 +305,7 @@ def invert_analytical(
     outside_ret_windows = np.ones(len(fm.idx_surface), dtype=bool)
     outside_ret_windows[full_idx] = False
     outside_ret_windows = np.where(outside_ret_windows)[0]
+
     if fm.RT.glint_model:
         full_idx = full_idx[:-1]
 
@@ -331,19 +333,14 @@ def invert_analytical(
         # Construct the H matrix from:
         # theta (rho portion)
         # gam (sun glint portion)
-        # ep (sky glint portion)
+        # We assume sky glint portion is equal to the diffuse background
         x_surface, x_RT, x_instrument = fm.unpack(x)
+
         if fm.RT.glint_model:
             x_surface[-1] = sky_glint
 
-        Ls = fm.surface.calc_Ls(x_surface, geom)
-        rho_dir_dir, rho_dif_dir = fm.surface.calc_rfl(
-            x_surface, geom, L_down_dir, L_down_dif
-        )
-        f = s * rho_dif_dir
-
-        theta = L_tot + (L_tot * f)
-        # theta = L_tot / (1 - bg)
+        # theta = L_tot + (L_tot * f)
+        theta = L_tot + (L_tot * bg)
         if fm.RT.glint_model:
             H = np.eye(len(theta), len(x_surface) - 1)
         else:
@@ -352,9 +349,8 @@ def invert_analytical(
 
         if fm.RT.glint_model:
             gam = (L_dir_dir + L_dir_dif) * g_dir
-            ep = ((L_dif_dir + L_dif_dif) * g_dif) - ((L_tot * f * g_dif) / (1 - f))
+            ep = ((L_dif_dir + L_dif_dif) * g_dif) - ((L_tot * bg * g_dif) / (1 - bg))
             H[:, -1] = gam
-            # H[:, -1] = ep
 
         # Just the wavelengths and states of interest
         L = H[winidx, :][:, full_idx]

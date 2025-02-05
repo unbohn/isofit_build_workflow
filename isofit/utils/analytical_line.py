@@ -120,6 +120,13 @@ def analytical_line(
     fm = ForwardModel(config)
     iv = Inversion(config, fm)
 
+    # TODO is there a more flexible version of this index scheme??
+    # What can we abstract to the RT and surfae modules respectiveley?
+    # Now, order HAS to be [surface terms, rt terms, instrument terms]
+    atm_band_names = fm.RT.statevec_names
+    if fm.RT.glint_model:
+        atm_band_names = ["SKY_GLINT"] + atm_band_names
+
     if os.path.isfile(atm_file) is False:
         atm_interpolation(
             reference_state_file=subs_state_file,
@@ -127,7 +134,7 @@ def analytical_line(
             input_locations_file=loc_file,
             segmentation_file=lbl_file,
             output_atm_file=atm_file,
-            atm_band_names=fm.RT.statevec_names,
+            atm_band_names=atm_band_names,
             nneighbors=n_atm_neighbors,
             gaussian_smoothing_sigma=smoothing_sigma,
             n_cores=n_cores,
@@ -269,6 +276,13 @@ class Worker(object):
         self.subs_state_file = subs_state_file
         self.lbl_file = lbl_file
 
+        # If I only want to use some of the atm_interp bands
+        # Empty if all
+        self.atm_bands = []
+
+        # How many iterations to use for invert_analytical
+        self.num_iter = 1
+
         if config.input.radiometry_correction_file is not None:
             self.radiance_correction, wl = load_spectrum(
                 config.input.radiometry_correction_file
@@ -319,17 +333,33 @@ class Worker(object):
                     continue
 
                 geom = Geometry(obs=obs[r, c, :], loc=loc[r, c, :], esd=esd)
-                # Atmospheric state comes from the atm_interpolated file
-                x_RT = rt_state[r, c, self.fm.idx_RT - len(self.fm.idx_surface)]
+
+                # "Atmospheric" state comes from the atm_interpolated file
+                # Can also include sky glint for the glint model
+                # Currently uses manual flag set up in the worker.init
+                # TODO this is hinting at surface-specific analytical line
+                # configurations. Should probably abstract to the
+                # surface module
+                if len(self.atm_bands):
+                    x_RT = rt_state[r, c, self.atm_bands]
+                else:
+                    x_RT = rt_state[r, c, :]
 
                 # Flat file - lbl lines up with row
-                superpixel_state = subs_state[int(lbl[r, c, 0]), 0, self.fm.idx_surface]
-
-                # Set the background reflectance as the superpixel_rhoo
-                # Does this lead to more accurate rfl?
-                # geom.bg_rfl = superpixel_state[self.fm.idx_surf_rfl]
+                # TODO I dislike how this is tied to static indexes
+                # Index magic should be handled in the surface modules
+                # I should simply be able to call self.fm.surface.X
+                if self.fm.RT.glint_model:
+                    # Remove sky glint
+                    state_idx = self.fm.idx_surface[:-1]
+                else:
+                    state_idx = self.fm.idx_surface
+                superpixel_state = subs_state[int(lbl[r, c, 0]), 0, state_idx]
 
                 # Concatenate full statevector to use for initialization
+                # This only works with the correct indexing.
+                # Any surface component of x_RT has to be first in the array.
+                # TODO handle indexing in a safer way. See line 126
                 x0 = np.concatenate([superpixel_state, x_RT])
                 states, unc = invert_analytical(
                     self.iv.fm,
@@ -337,15 +367,16 @@ class Worker(object):
                     meas,
                     geom,
                     x0,
-                    1,
+                    self.num_iter,
                     self.hash_table,
                     self.hash_size,
                 )
 
-                output_state[r - start_line, c, :] = states[-1][self.fm.idx_surface]
+                output_state[r - start_line, c, :] = states[-1, self.fm.idx_surface]
 
                 output_state_unc[r - start_line, c, :] = unc[self.fm.idx_surface]
 
+            # What do we want to do with the negative reflectances?
             state = output_state[r - start_line, ...]
             mask = np.logical_and.reduce(
                 [
