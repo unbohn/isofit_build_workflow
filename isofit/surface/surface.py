@@ -37,6 +37,7 @@ class Surface:
         config = full_config.forward_model.surface
 
         self.statevec_names = []
+        self.idx_surface = np.arange(len(self.statevec_names))
         self.bounds = np.array([])
         self.scale = np.array([])
         self.init = np.array([])

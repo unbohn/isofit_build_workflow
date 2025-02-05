@@ -34,6 +34,7 @@ class AdditiveGlintSurface(ThermalSurface):
 
         # TODO: Enforce this attribute in the config, not here (this is hidden)
         self.statevec_names.extend(["GLINT"])
+        self.idx_surface = np.arange(len(self.statevec_names))
         self.scale.extend([1.0])
         self.init.extend([0.005])
         self.bounds.extend([[0, 0.2]])
