@@ -290,28 +290,13 @@ def invert_analytical(
         # eliminate spherical albedo and one reflectance term from numerator if using 1-component model
         L_tot = L_tot / bg
 
-    # TODO Try to abstract these binary to the surface module
-    if fm.RT.glint_model:
-        sky_glint = x_surface[-1]
-        # Get glint contributions
-        rho_ls = fm.surface.fresnel_rf(geom.observer_zenith)
-        # Direct component
-        g_dir = rho_ls * (L_down_dir / (L_down_dir + L_down_dif))
-        # Diffuse component
-        g_dif = rho_ls * (L_down_dif / (L_down_dir + L_down_dif))
-
     # Get the inversion indices; Include glint indices if applicable
     full_idx = np.concatenate((winidx, fm.idx_surf_nonrfl), axis=0)
     outside_ret_windows = np.ones(len(fm.idx_surface), dtype=bool)
     outside_ret_windows[full_idx] = False
     outside_ret_windows = np.where(outside_ret_windows)[0]
+    iv_idx = fm.surface.analytical_iv_idx
 
-    if fm.RT.glint_model:
-        full_idx = full_idx[:-1]
-
-    # Save init state as x0
-    # trajectory = []
-    # trajectory.append(x)
     trajectory = np.zeros((num_iter + 1, len(x)))
     trajectory[0, :] = x
     for n in range(num_iter):
@@ -330,47 +315,38 @@ def invert_analytical(
         # Save the product of the prior covariance and mean
         prprod = Sa_inv @ xa_surface
 
-        # Construct the H matrix from:
-        # theta (rho portion)
-        # gam (sun glint portion)
-        # We assume sky glint portion is equal to the diffuse background
         x_surface, x_RT, x_instrument = fm.unpack(x)
 
-        if fm.RT.glint_model:
-            x_surface[-1] = sky_glint
-
-        # theta = L_tot + (L_tot * f)
-        theta = L_tot + (L_tot * bg)
-        if fm.RT.glint_model:
-            H = np.eye(len(theta), len(x_surface) - 1)
-        else:
-            H = np.eye(len(theta), len(x_surface))
-        H = theta[:, np.newaxis] * H
-
-        if fm.RT.glint_model:
-            gam = (L_dir_dir + L_dir_dif) * g_dir
-            ep = ((L_dif_dir + L_dif_dif) * g_dif) - ((L_tot * bg * g_dif) / (1 - bg))
-            H[:, -1] = gam
-
+        H = fm.surface.analytical_model(
+            bg,
+            L_down_dir,
+            L_down_dif,
+            L_tot,
+            geom,
+            L_dir_dir=L_dir_dir,
+            L_dir_dif=L_dir_dif,
+            L_dif_dir=L_dif_dir,
+            L_dif_dif=L_dif_dif,
+        )
         # Just the wavelengths and states of interest
-        L = H[winidx, :][:, full_idx]
+        L = H[winidx, :][:, iv_idx]
 
         C = dpotrf(Seps, 1)[0]
         P = dpotri(C, 1)[0]
 
         P_tilde = ((L.T @ P) @ L).T
-        P_rcond = Sa_inv[full_idx, :][:, full_idx] + P_tilde
+        P_rcond = Sa_inv[iv_idx, :][:, iv_idx] + P_tilde
 
         LI_rcond = dpotrf(P_rcond)[0]
         C_rcond = dpotri(LI_rcond)[0]
         xk = dsymv(
             1,
             C_rcond,
-            (L.T @ dsymv(1, P, meas[winidx] - L_atm[winidx]) + prprod[full_idx]),
+            (L.T @ dsymv(1, P, meas[winidx] - L_atm[winidx]) + prprod[iv_idx]),
         )
 
         # Save trajectory step:
-        x_surface[full_idx] = xk
+        x_surface[iv_idx] = xk
         if outside_ret_const is None:
             x_surface[outside_ret_windows] = xa_surface[outside_ret_windows]
         else:
@@ -382,10 +358,7 @@ def invert_analytical(
     # TODO
     """
     Not currently implemented cleanly if we want to propogate 
-    the entire glint spectrum. 
-    Commenting this out for now because we don't do this for the
-    full pixel inversions via inversion.invert
-    Need to clean up implementation.
+    the entire glint spectrum. Need to clean up implementation.
     """
     # if fm.RT.glint_model and fm.surface.return_glint_spectrum:
     #     trajectory.append(trajectory[-1][-2] * g_dir)
@@ -393,7 +366,7 @@ def invert_analytical(
 
     if diag_uncert:
         full_unc = np.ones(len(x))
-        full_unc[full_idx] = np.sqrt(np.diag(C_rcond))
+        full_unc[iv_idx] = np.sqrt(np.diag(C_rcond))
 
         return trajectory, full_unc
     else:

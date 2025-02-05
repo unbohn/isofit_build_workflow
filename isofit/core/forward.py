@@ -108,7 +108,7 @@ class ForwardModel:
         self.Sb = np.diagflat(np.power(self.bval, 2))
 
         # Set up indices for references - MUST MATCH ORDER FROM ABOVE ASSIGNMENT
-        self.idx_surface = np.arange(len(self.surface.statevec_names), dtype=int)
+        self.idx_surface = self.surface.idx_surface
         # Sometimes, it's convenient to have the index of the entire surface
         # as one variable, and sometimes you want the sub-components
         # Split surface state vector indices to cover cases where we retrieve

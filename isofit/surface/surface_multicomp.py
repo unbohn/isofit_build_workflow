@@ -84,6 +84,8 @@ class MultiComponentSurface(Surface):
         # Variables retrieved: each channel maps to a reflectance model parameter
         rmin, rmax = 0, 2.0
         self.statevec_names = ["RFL_%04i" % int(w) for w in self.wl]
+        self.idx_surface = np.arange(len(self.statevec_names))
+        self.analytical_iv_idx = np.arange(len(self.statevec_names))
         # self.bounds = [[rmin, rmax] for w in self.wl]
         self.bounds = [[-0.1, 1.5] for w in self.wl]
         self.scale = [1.0 for w in self.wl]
@@ -238,12 +240,26 @@ class MultiComponentSurface(Surface):
         return "Component: %i" % self.component(x_surface, geom)
 
     def analytical_model(
-        self, x_surface, s, rho_dif_dir, L_down_dir, L_down_dif, t_total_up
+        self,
+        background,
+        L_down_dir,
+        L_down_dif,
+        L_tot,
+        geom,
+        L_dir_dir=None,
+        L_dir_dif=None,
+        L_dif_dir=None,
+        L_dif_dif=None,
     ):
-        L_tot = (L_down_dir + L_down_dif) * t_total_up
-        theta = L_tot + (L_tot * s * rho_dif_dir)
-        # theta = L_tot / (1 - bg)
-        H = np.eye(len(theta), len(x_surface) - 1)
+        """
+        Linearization of the surface reflectance terms to use in the
+        AOE inner loop (see Susiluoto, 2025). We set the quadratic
+        spherical albedo term to a constant background, which makes
+        simplifies the linearization
+        background - s * rho_bg
+        """
+        theta = L_tot + (L_tot * background)
+        H = np.eye(self.n_wl, self.n_wl)
         H = theta[:, np.newaxis] * H
 
         return H

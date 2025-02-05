@@ -336,25 +336,14 @@ class Worker(object):
 
                 # "Atmospheric" state comes from the atm_interpolated file
                 # Can also include sky glint for the glint model
-                # Currently uses manual flag set up in the worker.init
-                # TODO this is hinting at surface-specific analytical line
-                # configurations. Should probably abstract to the
-                # surface module
+                # Currently use a manual flag set up in the worker.init
                 if len(self.atm_bands):
                     x_RT = rt_state[r, c, self.atm_bands]
                 else:
                     x_RT = rt_state[r, c, :]
 
-                # Flat file - lbl lines up with row
-                # TODO I dislike how this is tied to static indexes
-                # Index magic should be handled in the surface modules
-                # I should simply be able to call self.fm.surface.X
-                if self.fm.RT.glint_model:
-                    # Remove sky glint
-                    state_idx = self.fm.idx_surface[:-1]
-                else:
-                    state_idx = self.fm.idx_surface
-                superpixel_state = subs_state[int(lbl[r, c, 0]), 0, state_idx]
+                iv_idx = self.fm.surface.analytical_iv_idx
+                superpixel_state = subs_state[int(lbl[r, c, 0]), 0, iv_idx]
 
                 # Concatenate full statevector to use for initialization
                 # This only works with the correct indexing.
