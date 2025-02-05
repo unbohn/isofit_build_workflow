@@ -464,23 +464,11 @@ class RadiativeTransfer:
             # eliminate spherical albedo and one reflectance term from numerator if using 1-component model
             L_tot = L_tot / (s_alb * rho_dif_dir)
 
-        # rho_dif_dif = (
-        #     geom.bg_rfl if isinstance(geom.bg_rfl, np.ndarray) else rho_dif_dir
-        # )
-
         # K surface reflectance
         drho_scaled_for_multiscattering_drfl = 1.0 / (
             (1.0 - (s_alb * rho_dif_dir)) ** 2
         )
 
-        # if type(t_total_up) != np.ndarray or len(t_total_up) == 1:
-        #     drdn_drfl = L_down_tot * drho_scaled_for_multiscattering_drfl
-        # else:
-        #     drdn_drfl = (
-        #         (L_down_dir + L_down_dif)
-        #         * t_total_up
-        #         * drho_scaled_for_multiscattering_drfl
-        #     )
         drdn_drfl = L_tot * drho_scaled_for_multiscattering_drfl
 
         drdn_dLs = t_total_up
@@ -494,7 +482,6 @@ class RadiativeTransfer:
         # Currently won't scale easily with statevector elements.
         if self.glint_model:
             # Direct term
-            # Missing the coupling terms (no upwards)
             drdn_dgdd = L_dir_dir + L_dir_dif
 
             # Diffuse term
