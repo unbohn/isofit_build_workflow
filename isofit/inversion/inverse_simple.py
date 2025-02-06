@@ -285,10 +285,7 @@ def invert_analytical(
 
     # Special case: 1-component model
     if type(L_tot) != np.ndarray or len(L_tot) == 1:
-        # we assume rho_dir_dir = rho_dif_dir = rho_dir_dif = rho_dif_dif
-        rho_dif_dif = rho_dir_dir
-        # eliminate spherical albedo and one reflectance term from numerator if using 1-component model
-        L_tot = L_tot / bg
+        L_tot = L_down_tot
 
     # Get the inversion indices; Include glint indices if applicable
     full_idx = np.concatenate((winidx, fm.idx_surf_nonrfl), axis=0)
