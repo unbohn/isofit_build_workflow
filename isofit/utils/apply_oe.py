@@ -39,6 +39,7 @@ SUPPORTED_SENSORS = [
     "gao",
     "oci",
     "tanager",
+    "sbg",
 ]
 RTM_CLEANUP_LIST = ["*r_k", "*t_k", "*tp7", "*wrn", "*psc", "*plt", "*7sc", "*acd"]
 INVERSION_WINDOWS = [[350.0, 1360.0], [1410, 1800.0], [1970.0, 2500.0]]
@@ -364,6 +365,10 @@ def apply_oe(
     elif sensor == "tanager":
         # parse flightline ID (Tanager assumptions)
         dt = datetime.strptime(paths.fid[:15], "%Y%m%d_%H%M%S")
+    elif sensor == "sbg":
+        # parse flightline ID (SBG assumptions)
+        dt = datetime.strptime(paths.fid[:18], "sbg%Y%m%dt%H%M%S")
+        INVERSION_WINDOWS = [[380.0, 1325.0], [1435, 1770.0], [1965.0, 2500.0]]
     elif sensor[:3] == "NA-":
         dt = datetime.strptime(sensor[3:], "%Y%m%d")
     else:
