@@ -75,6 +75,8 @@ class Pathnames:
             self.fid = split(input_radiance)[-1][:24]
         elif sensor == "tanager":
             self.fid = split(input_radiance)[-1][:23]
+        elif sensor == "chime":
+            self.fid = split(input_radiance)[-1][:20]
         elif sensor[:3] == "NA-":
             self.fid = os.path.splitext(os.path.basename(input_radiance))[0]
 
