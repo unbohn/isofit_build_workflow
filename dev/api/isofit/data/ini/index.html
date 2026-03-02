@@ -21,7 +21,7 @@
       
       
       <link rel="icon" href="../../../../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.2">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.3">
     
     
       
@@ -2055,34 +2055,6 @@
   
   
     <li class="md-nav__item">
-      <a href="../cli/imagecube/" class="md-nav__link">
-        
-  
-  
-  <span class="md-ellipsis">
-    
-  
-    Imagecube
-  
-
-    
-  </span>
-  
-  
-
-      </a>
-    </li>
-  
-
-              
-            
-              
-                
-  
-  
-  
-  
-    <li class="md-nav__item">
       <a href="../cli/isoplots/" class="md-nav__link">
         
   
@@ -2239,6 +2211,34 @@
     
   
     Build examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../dev/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Dev
   
 
     
@@ -5119,7 +5119,7 @@ Attempts to detect if a configuration file sits in an ISOFIT working_directory</
 <ul class="mkapi-item-list">
 <li>
 <p><span class="mkapi-item-name">config</span> : 
-<span class="mkapi-item-type">pathlib.<span class="mkapi-tooltip" title="pathlib._local.Path">Path</span></span> <span class="mkapi-dash">&mdash;</span>
+<span class="mkapi-item-type">pathlib.<span class="mkapi-tooltip" title="pathlib.Path">Path</span></span> <span class="mkapi-dash">&mdash;</span>
 Path to a config json file</p>
 </li>
 </ul>
@@ -5136,7 +5136,7 @@ Path to a config json file</p>
 <ul class="mkapi-item-list">
 <li>
 <p><span class="mkapi-item-name">wd</span> : 
-<span class="mkapi-item-type">pathlib.<span class="mkapi-tooltip" title="pathlib._local.Path">Path</span> | None</span> <span class="mkapi-dash">&mdash;</span>
+<span class="mkapi-item-type">pathlib.<span class="mkapi-tooltip" title="pathlib.Path">Path</span> | None</span> <span class="mkapi-dash">&mdash;</span>
 Path to the working directory, if it's detected to be valid</p>
 </li>
 </ul>
@@ -5429,7 +5429,7 @@ The key whose path needs to be changed.</p>
 </li>
 <li>
 <p><span class="mkapi-item-name">value</span> : 
-<span class="mkapi-item-type">str or <span class="mkapi-tooltip" title="pathlib._local.Path">Path</span></span> <span class="mkapi-dash">&mdash;</span>
+<span class="mkapi-item-type">str or <span class="mkapi-tooltip" title="pathlib.Path">Path</span></span> <span class="mkapi-dash">&mdash;</span>
 The new path to associate with the key.</p>
 </li>
 </ul>
@@ -5463,7 +5463,7 @@ The new path to associate with the key.</p>
 <ul class="mkapi-item-list">
 <li>
 <p><span class="mkapi-item-name">ini</span> : 
-<span class="mkapi-item-type">str or <span class="mkapi-tooltip" title="pathlib._local.Path">Path</span>, optional</span> <span class="mkapi-dash">&mdash;</span>
+<span class="mkapi-item-type">str or <span class="mkapi-tooltip" title="pathlib.Path">Path</span>, optional</span> <span class="mkapi-dash">&mdash;</span>
 The path to the INI file containing config variables. If None, the default INI file path is used.
 If provided, sets the global INI for the remainder of the session.</p>
 </li>
@@ -5503,7 +5503,7 @@ Sets the working section for the session. Key lookups will use this section.</p>
 <ul class="mkapi-item-list">
 <li>
 <p><span class="mkapi-item-name">ini</span> : 
-<span class="mkapi-item-type">str or <span class="mkapi-tooltip" title="pathlib._local.Path">Path</span>, optional</span> <span class="mkapi-dash">&mdash;</span>
+<span class="mkapi-item-type">str or <span class="mkapi-tooltip" title="pathlib.Path">Path</span>, optional</span> <span class="mkapi-dash">&mdash;</span>
 The path to save the config variables to. If None, the default INI file path is used.
 If provided, sets the global INI for the remainder of the session.</p>
 </li>
@@ -5528,7 +5528,7 @@ If False, will save regardless, possibly overwriting an existing file</p>
 </span>
 </span><span class="mkapi-object-kind">method</span>
 <span class="mkapi-object-parent">
-<a href="./#isofit.data.ini.Ini" title="isofit.data.ini.Ini">Ini</a><span class="mkapi-dot">.</span></span><span class="mkapi-object-name"><a href="./#isofit.data.ini.Ini.path" title="isofit.data.ini.Ini.path">path</a></span><span class="mkapi-signature"><span class="mkapi-paren">(</span><span class="mkapi-arg">dir</span><span class="mkapi-colon">: </span><span class="mkapi-ann">str</span><span class="mkapi-comma">, </span><span class="mkapi-star">*</span><span class="mkapi-arg">path</span><span class="mkapi-colon">: </span><span class="mkapi-ann">List[str]</span><span class="mkapi-comma">, </span><span class="mkapi-arg">key</span><span class="mkapi-colon">: </span><span class="mkapi-ann">str</span><span class="mkapi-equal"> = </span><span class="mkapi-default">None</span><span class="mkapi-comma">, </span><span class="mkapi-arg">template</span><span class="mkapi-colon">: </span><span class="mkapi-ann">bool</span><span class="mkapi-equal"> = </span><span class="mkapi-default">False</span><span class="mkapi-paren">)</span><span class="mkapi-arrow"> → </span><span class="mkapi-return"><span class="mkapi-tooltip" title="pathlib._local.Path">Path</span></span></span>
+<a href="./#isofit.data.ini.Ini" title="isofit.data.ini.Ini">Ini</a><span class="mkapi-dot">.</span></span><span class="mkapi-object-name"><a href="./#isofit.data.ini.Ini.path" title="isofit.data.ini.Ini.path">path</a></span><span class="mkapi-signature"><span class="mkapi-paren">(</span><span class="mkapi-arg">dir</span><span class="mkapi-colon">: </span><span class="mkapi-ann">str</span><span class="mkapi-comma">, </span><span class="mkapi-star">*</span><span class="mkapi-arg">path</span><span class="mkapi-colon">: </span><span class="mkapi-ann">List[str]</span><span class="mkapi-comma">, </span><span class="mkapi-arg">key</span><span class="mkapi-colon">: </span><span class="mkapi-ann">str</span><span class="mkapi-equal"> = </span><span class="mkapi-default">None</span><span class="mkapi-comma">, </span><span class="mkapi-arg">template</span><span class="mkapi-colon">: </span><span class="mkapi-ann">bool</span><span class="mkapi-equal"> = </span><span class="mkapi-default">False</span><span class="mkapi-paren">)</span><span class="mkapi-arrow"> → </span><span class="mkapi-return"><span class="mkapi-tooltip" title="pathlib.Path">Path</span></span></span>
 </p>
 <div class="mkapi-document">
 <p>Retrieves a path under one of the env directories and validates the path exists.</p>
@@ -5577,7 +5577,7 @@ but the return will be "{env.[dir]}/*path", to be used with Ini.replace</p>
 <div class="mkapi-section-content">
 <ul class="mkapi-item-list">
 <li>
-<p><span class="mkapi-item-type">pathlib.<span class="mkapi-tooltip" title="pathlib._local.Path">Path</span></span> <span class="mkapi-dash">&mdash;</span>
+<p><span class="mkapi-item-type">pathlib.<span class="mkapi-tooltip" title="pathlib.Path">Path</span></span> <span class="mkapi-dash">&mdash;</span>
 Validated full path</p>
 </li>
 </ul>
